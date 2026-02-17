@@ -94,6 +94,8 @@ func newUpdateCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Updated to v%s\n", latestVersion)
+			fmt.Println()
+			fmt.Println("Run 'specflow sync' in your projects to update the Claude Code skill.")
 			return nil
 		},
 	}
