@@ -150,6 +150,15 @@ Human tells Claude: "What should I work on next?"
 | `specflow story` | `s` | Create, list, show, edit, update stories; find next story |
 | `specflow doc` | `d` | Create, list, show, and edit documents |
 | `specflow decision` | `dec` | Create, list, and show architectural decisions |
+| `specflow status` | | Project-wide or per-entity status rollup with progress bars |
+| `specflow questions` | | List all open questions across the project |
+| `specflow blocked` | | Show all blocked stories and their blockers |
+| `specflow assumptions` | | List all recorded assumptions |
+| `specflow log` | | Show the activity log |
+| `specflow search` | | Full-text search across all artifacts |
+| `specflow import` | | Import an existing markdown file as an artifact |
+| `specflow mode` | | Show or set project mode (`fast` / `careful`) |
+| `specflow mcp` | | Start MCP server on stdio for Claude Code |
 | `specflow version` | | Print version information |
 
 Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `set`. Run `specflow <command> --help` for details.
@@ -199,6 +208,9 @@ specflow init --with-claude
 | `sf_assumptions` | All recorded assumptions |
 | `sf_hard_questions` | Contextual hard questions for any entity |
 | `sf_review_prompt` | Coaching/review prompt for a document |
+| `sf_diff` | Git diff between refs or for a story's execution |
+| `sf_scope_check` | Cross-reference stories against PRD scope |
+| `sf_diff_check` | Detect drift between docs and stories by timestamps |
 
 ### Write Tools
 
@@ -228,6 +240,22 @@ The core value of specflow. When Claude Code calls `sf_context_build`, it assemb
 | 4. Implementation Plan | Approved plan with file-level detail |
 | 5. Referenced Files | Files from plan, pattern exemplars, predecessor outputs |
 | 6. Open Items | Open questions, assumptions, blockers |
+
+## Modes
+
+specflow supports two modes that control the level of ceremony:
+
+```sh
+specflow mode           # Show current mode
+specflow mode fast      # Switch to fast mode
+specflow mode careful   # Switch to careful mode (default)
+```
+
+| Aspect | Fast | Careful |
+|--------|------|---------|
+| Story templates | Title + acceptance only | Full template with all fields |
+| Hard questions | Suppressed | Always included |
+| Verification | Only on explicit request | Prompted after every execution |
 
 ## Storage
 
