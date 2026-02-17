@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/balazscsaba2006/specflow/internal/git"
+	"github.com/balazscsaba2006/specflow/internal/hardq"
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -55,6 +56,15 @@ type logInput struct {
 type diffInput struct {
 	Story string `json:"story,omitempty" jsonschema:"description=story slug (uses latest execution baseline)"`
 	Refs  string `json:"refs,omitempty" jsonschema:"description=explicit git ref range e.g. abc123..HEAD"`
+}
+
+type hardQuestionsInput struct {
+	Entity string `json:"entity" jsonschema:"description=any entity slug (initiative, epic, story, or doc)"`
+}
+
+type reviewPromptInput struct {
+	Doc  string `json:"doc" jsonschema:"description=document slug"`
+	Epic string `json:"epic,omitempty" jsonschema:"description=parent epic slug for epic-scoped docs"`
 }
 
 // registerReadTools registers all read-only MCP tools on the server.
@@ -138,6 +148,16 @@ func (s *Server) registerReadTools() {
 		Name:        "sf_diff",
 		Description: "Returns git diff for a story's execution. Defaults to diff between execution start and current HEAD. Provide either a story slug or explicit ref range.",
 	}, s.handleDiff)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_hard_questions",
+		Description: "Returns contextual hard questions for any entity based on its type. These are deterministic template-based questions to challenge thinking before finalizing an artifact.",
+	}, s.handleHardQuestions)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_review_prompt",
+		Description: "Assembles a coaching/review prompt for a document. Returns a structured prompt with the document content embedded, tailored to the document type (PRD, tech-spec, etc.).",
+	}, s.handleReviewPrompt)
 }
 
 // --- Handlers ---
@@ -886,4 +906,80 @@ func (s *Server) handleDiff(_ context.Context, _ *mcp.CallToolRequest, input dif
 	}
 
 	return textResult(fmt.Sprintf("```diff\n%s```", diff)), nil, nil
+}
+
+func (s *Server) handleHardQuestions(_ context.Context, _ *mcp.CallToolRequest, input hardQuestionsInput) (*mcp.CallToolResult, any, error) {
+	if input.Entity == "" {
+		return errResult("entity is required"), nil, nil
+	}
+
+	entityType := s.detectEntityType(input.Entity)
+	if entityType == "" {
+		return errResultf("entity %q not found", input.Entity), nil, nil
+	}
+
+	questions := hardq.Questions(entityType)
+	if len(questions) == 0 {
+		return textResult(fmt.Sprintf("No hard questions defined for %s entities.", entityType)), nil, nil
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Hard Questions for %s (`%s`)\n\n", entityType, input.Entity)
+	for i, q := range questions {
+		fmt.Fprintf(&b, "%d. %s\n", i+1, q)
+	}
+	return textResult(b.String()), nil, nil
+}
+
+func (s *Server) handleReviewPrompt(_ context.Context, _ *mcp.CallToolRequest, input reviewPromptInput) (*mcp.CallToolResult, any, error) {
+	if input.Doc == "" {
+		return errResult("doc is required"), nil, nil
+	}
+
+	doc, err := s.store.LoadDoc(input.Doc, input.Epic)
+	if err != nil {
+		// Try searching under epics if no epic was provided.
+		if input.Epic == "" {
+			if found, _, findErr := s.findDoc(input.Doc); findErr == nil {
+				doc = found
+			} else {
+				return errResultf("loading doc %q: %v", input.Doc, err), nil, nil
+			}
+		} else {
+			return errResultf("loading doc %q: %v", input.Doc, err), nil, nil
+		}
+	}
+
+	docType := hardq.EntityType(doc.Type)
+	prompt := hardq.ReviewPrompt(docType)
+	if prompt == "" {
+		// Fall back to decompose prompt for specs without a specific review template.
+		prompt = hardq.DecomposePrompt
+		prompt = strings.ReplaceAll(prompt, "{{spec_content}}", doc.Body)
+	} else {
+		prompt = strings.ReplaceAll(prompt, "{{doc_content}}", doc.Body)
+	}
+
+	return textResult(prompt), nil, nil
+}
+
+// detectEntityType probes the store to determine what type an entity slug is.
+func (s *Server) detectEntityType(slug string) hardq.EntityType {
+	if _, err := s.store.LoadInitiative(slug); err == nil {
+		return hardq.Initiative
+	}
+	if _, err := s.store.LoadEpic(slug); err == nil {
+		return hardq.Epic
+	}
+	if _, err := s.findStory(slug); err == nil {
+		return hardq.Story
+	}
+	// Try doc — project-level first, then under epics.
+	if doc, err := s.store.LoadDoc(slug, ""); err == nil {
+		return hardq.EntityType(doc.Type)
+	}
+	if doc, _, err := s.findDoc(slug); err == nil {
+		return hardq.EntityType(doc.Type)
+	}
+	return ""
 }
