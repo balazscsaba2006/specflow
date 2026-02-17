@@ -134,20 +134,15 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 .specflow/
 +-- config.yaml                              # Project configuration
 +-- log.jsonl                                # Activity log (append-only JSONL)
-+-- templates/                               # User-customizable template overrides
-|   +-- prd.md.tmpl
-|   +-- tech-spec.md.tmpl
-|   +-- api-spec.md.tmpl
-|   +-- design-spec.md.tmpl
-|   +-- adr.md.tmpl
-|   +-- one-pager.md.tmpl
-|   +-- story.md.tmpl
-|   +-- epic.md.tmpl
-|   +-- initiative.md.tmpl
-|   +-- review-prd.md.tmpl
-|   +-- review-tech-spec.md.tmpl
-|   +-- review-story.md.tmpl
-|   +-- decompose.md.tmpl
++-- templates/                               # Per-project template overrides
+|   +-- initiative.md                        # Override initiative template
+|   +-- epic.md                              # Override epic template
+|   +-- story.md                             # Override story template (careful mode)
+|   +-- story_fast.md                        # Override story template (fast mode)
+|   +-- decision.md                          # Override decision template
+|   +-- doc_prd.md                           # Override PRD template
+|   +-- doc_adr.md                           # Override ADR template
+|   +-- doc_generic.md                       # Override fallback doc template
 +-- initiatives/
 |   +-- {slug}/
 |       +-- initiative.md                    # Frontmatter + description
@@ -172,8 +167,9 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 |   +-- 002-filesystem-over-sqlite.md
 +-- executions/                              # Flat, indexed by story slug
     +-- {story-slug}/
+        +-- latest/
+        |   +-- plan.md                      # Implementation plan (latest)
         +-- {exec-id}/
-            +-- plan.md                      # Implementation plan
             +-- verification.md              # Verification findings
             +-- meta.yaml                    # Git refs, timestamps, status
 ```

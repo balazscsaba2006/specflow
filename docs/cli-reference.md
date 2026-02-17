@@ -81,6 +81,15 @@ specflow config ls
 
 List all config values. Outputs the full configuration as YAML.
 
+### Configuration Keys
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `mode` | string | `careful` | Project mode: `fast` or `careful` |
+| `conventions_file` | string | `CLAUDE.md` | Path to project conventions file (used by context builder) |
+| `agents_file` | string | `""` | Path to agents file (used by context builder) |
+| `default_priority` | string | `medium` | Default priority for new stories |
+
 ---
 
 ## initiative
@@ -302,7 +311,7 @@ Create, list, show, edit, and update stories.
 specflow story new <slug> [flags]
 ```
 
-Create a new story. Opens `$EDITOR` with a template. If `--epic` is provided, it is pre-filled in the template.
+Create a new story. Opens `$EDITOR` with a template. The template varies by project mode: careful mode uses the full template with all fields; fast mode uses a minimal template with just title and acceptance criteria. If `--epic` is provided, it is pre-filled in the template.
 
 **Arguments:**
 
@@ -405,7 +414,7 @@ Quick-update a single field on a story without opening an editor. Status changes
 | `planned` | `in_progress`, `blocked` |
 | `in_progress` | `verifying`, `done`, `blocked` |
 | `verifying` | `done`, `in_progress`, `blocked` |
-| `done` | (none) |
+| `done` | (none -- terminal) |
 | `blocked` | `draft`, `planned`, `in_progress` |
 
 **Valid priorities:** `critical`, `high`, `medium`, `low`
@@ -532,7 +541,7 @@ Create, list, and show architectural decisions.
 specflow decision new <slug>
 ```
 
-Create a new decision. Opens `$EDITOR` with a template containing Context, Decision, and Consequences sections.
+Create a new decision. Opens `$EDITOR` with a template containing Context, Decision, and Consequences sections. The date is auto-set to today if not specified in the frontmatter.
 
 **Arguments:**
 
@@ -563,3 +572,172 @@ Show full details of a decision, including ID, slug, date, title, status, contex
 | `slug` | yes | Slug of the decision to display |
 
 **Valid statuses:** `proposed`, `accepted`, `superseded`, `deprecated`
+
+---
+
+## status
+
+```
+specflow status [slug]
+```
+
+Show project or entity status.
+
+Without arguments, shows an aggregate status rollup across all epics and stories with a table (columns: EPIC, STATUS, STORIES, DONE, PROGRESS) and a summary of standalone stories.
+
+With a slug argument, auto-detects the entity type (initiative, epic, or story) and shows its details.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `slug` | no | Entity slug to show detail for (auto-detects type) |
+
+---
+
+## questions
+
+```
+specflow questions
+```
+
+List all open questions across the project. Walks all initiatives, epics, and stories to collect open questions, grouped by source.
+
+Outputs a table with columns: SOURCE, QUESTION. Prints total count at the bottom.
+
+---
+
+## blocked
+
+```
+specflow blocked
+```
+
+List all blocked stories. Shows stories that have non-empty `blocked_by` where at least one blocker is not done.
+
+Outputs a table with columns: SLUG, TITLE, STATUS, EPIC, BLOCKED BY. Each blocker is annotated with its current status.
+
+---
+
+## assumptions
+
+```
+specflow assumptions
+```
+
+List all assumptions across stories, grouped by epic. Walks all stories and collects the `assumptions` field.
+
+Outputs a table with columns: EPIC, STORY, ASSUMPTION. Prints total count at the bottom.
+
+---
+
+## log
+
+```
+specflow log [flags]
+```
+
+Show the activity log. Reads the most recent entries from `log.jsonl` and displays them as a timeline.
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--last`, `-n` | int | `20` | Number of recent entries to show |
+
+### Event Types
+
+| Event | Fields Shown |
+|-------|-------------|
+| `story.status_changed` | entity, from/to status |
+| `execution.started` | story, git ref |
+| `execution.completed` | story, files changed, git ref |
+| `verification.saved` | story, result, severity counts |
+| Other events | type, entity, optional epic/story context |
+
+---
+
+## search
+
+```
+specflow search <query> [flags]
+```
+
+Full-text search across all specflow artifacts. Performs case-insensitive search through all `.md` files under `.specflow/`.
+
+Results are grouped by file with matching lines highlighted and context lines shown around each match.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `query` | yes | The search string |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--context`, `-C` | int | `1` | Number of context lines around each match |
+
+---
+
+## import
+
+```
+specflow import <file> [flags]
+```
+
+Import an existing markdown file as a specflow artifact.
+
+If the file has YAML frontmatter, its fields are used. If not, metadata is generated from the filename (the filename is converted to a slug).
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `file` | yes | Path to the markdown file to import |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--type` | string | `story` | Artifact type: `story`, `doc`, `epic`, `initiative`, `decision` |
+| `--epic` | string | `""` | Parent epic slug (for stories and docs) |
+
+---
+
+## mode
+
+```
+specflow mode [fast|careful]
+```
+
+Show or set the project mode.
+
+Without arguments, shows the current mode. With an argument, sets the mode and persists it to config.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `mode` | no | Mode to set: `fast` or `careful` |
+
+### Mode Differences
+
+| Aspect | Fast | Careful (default) |
+|--------|------|-------------------|
+| Story templates | Title + acceptance only | Full template with all fields |
+| Hard questions | Suppressed via MCP | Always included |
+| Verification prompt | Only on explicit request | Prompted after every execution |
+
+---
+
+## mcp
+
+```
+specflow mcp
+```
+
+Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.claude/settings.json`.
+
+The MCP server exposes 30+ tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.

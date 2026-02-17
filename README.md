@@ -6,7 +6,7 @@ A spec-driven development CLI that acts as a structured memory and context layer
 
 specflow sits between the human (architect/PM/tech lead) and Claude Code (the AI agent), providing:
 
-1. **Structured artifact management** -- initiatives, epics, stories, specs, decisions stored as git-friendly markdown
+1. **Structured artifact management** -- initiatives, epics, stories, specs, decisions stored as markdown with YAML frontmatter
 2. **Rich context assembly** -- layered prompt building from project state for Claude Code
 3. **Progress tracking** -- status rollup across the full hierarchy
 4. **Verification support** -- plan-vs-implementation comparison data
@@ -17,7 +17,7 @@ specflow sits between the human (architect/PM/tech lead) and Claude Code (the AI
 ## What It Is Not
 
 - **Not an AI agent** -- Claude Code is the agent; specflow manages state and context
-- **Not a replacement for git** -- everything is stored as plain markdown, designed to be committed
+- **Not a replacement for git** -- artifacts are plain markdown files that can optionally be version-controlled
 - **Not a team collaboration tool** -- built for personal use
 - **Not a GUI** -- CLI and MCP only
 
@@ -63,81 +63,24 @@ specflow mcp           # MCP mode -- Claude Code reads/writes via stdio
 
 ## Installation
 
-### From source
+- **From source:** `go install github.com/balazscsaba2006/specflow/cmd/specflow@latest`
+- **Pre-built binaries:** Download from [GitHub Releases](https://github.com/balazscsaba2006/specflow/releases) (Linux, macOS, Windows -- amd64 and arm64)
 
-```sh
-go install github.com/balazscsaba2006/specflow/cmd/specflow@latest
-```
-
-### Pre-built binaries
-
-Download from [GitHub Releases](https://github.com/balazscsaba2006/specflow/releases). Binaries are available for Linux, macOS, and Windows on amd64 and arm64.
-
-## Quick Start
-
-```sh
-# Initialize a new specflow project
-specflow init
-
-# Optionally configure Claude Code MCP integration
-specflow init --with-claude
-
-# Create an epic
-specflow epic new auth-system
-
-# Create stories under that epic
-specflow story new jwt-middleware --epic auth-system
-specflow story new api-key-store --epic auth-system
-
-# Create a PRD for the epic
-specflow doc new prd --type prd --epic auth-system
-
-# See what to work on next
-specflow story next --epic auth-system
-```
+See [Getting Started](docs/getting-started.md) for detailed setup instructions including MCP configuration.
 
 ## The Hierarchy
 
 ```
 Project (.specflow/)
   +-- Initiative (optional -- groups epics toward a strategic goal)
-       +-- Epic (optional -- a shippable feature/capability)
-            +-- Story (the atomic work unit)
+    +-- Epic (optional -- a shippable feature/capability)
+      +-- Story (the atomic work unit)
 ```
 
 Everything upward is optional:
 - `initiative > epic > story` -- full hierarchy
 - `epic > story` -- no initiative
 - Standalone story -- no epic, no initiative
-
-## How It Works with Claude Code
-
-**Human workflow (CLI):**
-```
-specflow epic new "auth-system"
-  -> CLI creates .specflow/epics/auth-system/epic.md
-  -> Opens $EDITOR for human to write description
-  -> Human saves and closes editor
-  -> CLI confirms creation
-```
-
-**Claude Code workflow (MCP):**
-```
-Human tells Claude: "What should I work on next?"
-  -> Claude calls sf_story_next()
-  -> specflow returns the next unblocked story
-  -> Claude calls sf_context_build("jwt-middleware")
-  -> specflow assembles: project conventions + epic context + specs + plan
-  -> Claude reads the context, implements the code
-  -> Claude calls sf_execution_start("jwt-middleware")
-  -> specflow records git ref baseline
-  -> Claude finishes implementation
-  -> Claude calls sf_execution_complete("x_01...")
-  -> specflow captures git ref after + diff
-  -> Claude calls sf_verify_save("jwt-middleware", findings)
-  -> specflow stores verification results
-  -> Claude calls sf_story_update("jwt-middleware", status="done")
-```
 
 ## CLI Commands
 
@@ -161,7 +104,7 @@ Human tells Claude: "What should I work on next?"
 | `specflow mcp` | | Start MCP server on stdio for Claude Code |
 | `specflow version` | | Print version information |
 
-Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `set`. Run `specflow <command> --help` for details.
+Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `set`. See the [CLI Reference](docs/cli-reference.md) for full details.
 
 ### Document Types
 
@@ -176,13 +119,13 @@ Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `s
 
 ## MCP Tools
 
-specflow exposes MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server:
+specflow exposes 30 MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server:
 
 ```sh
 specflow mcp
 ```
 
-Or configure it automatically:
+Or configure it automatically during init:
 
 ```sh
 specflow init --with-claude
@@ -205,6 +148,7 @@ specflow init --with-claude
 | `sf_questions` | All open questions grouped by source |
 | `sf_blocked` | All blocked stories with their blockers |
 | `sf_decisions` | Decision log |
+| `sf_log` | Activity log entries |
 | `sf_assumptions` | All recorded assumptions |
 | `sf_hard_questions` | Contextual hard questions for any entity |
 | `sf_review_prompt` | Coaching/review prompt for a document |
@@ -228,6 +172,8 @@ specflow init --with-claude
 | `sf_verify_save` | Save verification results |
 | `sf_question_resolve` | Mark an open question as resolved |
 
+See the [MCP Tools Reference](docs/mcp-tools.md) for parameters and response formats.
+
 ### Context Builder
 
 The core value of specflow. When Claude Code calls `sf_context_build`, it assembles a six-layer context document:
@@ -238,7 +184,7 @@ The core value of specflow. When Claude Code calls `sf_context_build`, it assemb
 | 2. Initiative/Epic Context | Goal, phase map, completed stories, decisions |
 | 3. Spec Requirements | Referenced docs (full content), acceptance criteria |
 | 4. Implementation Plan | Approved plan with file-level detail |
-| 5. Referenced Files | Files from plan, pattern exemplars, predecessor outputs |
+| 5. Referenced Files | Files from plan, pattern exemplars |
 | 6. Open Items | Open questions, assumptions, blockers |
 
 ## Modes
@@ -263,25 +209,72 @@ All data lives in `.specflow/` as markdown with YAML frontmatter:
 
 ```
 .specflow/
-+-- config.yaml
-+-- log.jsonl                         # Append-only activity log
-+-- templates/                        # User-customizable templates
++-- config.yaml                          # Project configuration
++-- log.jsonl                            # Append-only activity log
++-- templates/                           # Per-project template overrides
 +-- initiatives/{slug}/
 |   +-- initiative.md
 +-- epics/{slug}/
 |   +-- epic.md
-|   +-- docs/                         # Specs scoped to this epic
-|   +-- stories/                      # Stories under this epic
-+-- stories/                          # Standalone stories
-+-- docs/                             # Project-level documents
-+-- decisions/                        # Decision log
-+-- executions/{story-slug}/{exec-id}/
-    +-- plan.md
-    +-- verification.md
-    +-- meta.yaml                     # Git refs, timestamps, status
+|   +-- docs/                            # Specs scoped to this epic
+|   +-- stories/                         # Stories under this epic
++-- stories/                             # Standalone stories
++-- docs/                                # Project-level documents
++-- decisions/                           # Decision log
++-- executions/{story-slug}/
+    +-- latest/
+    |   +-- plan.md                      # Implementation plan (latest)
+    +-- {exec-id}/
+        +-- verification.md
+        +-- meta.yaml                    # Git refs, timestamps, status
 ```
 
 All artifacts use the same format: YAML frontmatter for structured metadata, markdown body for human-written content. IDs are ULID-based (time-sortable) with type prefixes (`i_`, `e_`, `s_`, `d_`, `dec_`, `p_`, `x_`, `v_`).
+
+### Git Integration
+
+The `.specflow/` directory works in two ways:
+
+**Committed to git (default)** -- Artifacts are version-controlled alongside your code. Changes to specs, stories, and decisions are tracked in git history. This is the recommended approach for most projects.
+
+**Local-only** -- If you prefer to keep specflow state out of version control, exclude it:
+
+```sh
+# Add to .git/info/exclude (local to your clone, not committed)
+echo ".specflow/" >> .git/info/exclude
+
+# Or add to .gitignore (shared with team)
+echo ".specflow/" >> .gitignore
+```
+
+This is useful when specflow is purely a personal planning layer and you don't want to add metadata files to the repository.
+
+### Template Customization
+
+specflow ships with built-in templates for all artifact types. You can override any template per-project by placing a file in `.specflow/templates/`:
+
+```
+.specflow/templates/
++-- initiative.md      # Override initiative creation template
++-- epic.md            # Override epic creation template
++-- story.md           # Override story creation template (careful mode)
++-- story_fast.md      # Override story creation template (fast mode)
++-- decision.md        # Override decision creation template
++-- doc_prd.md         # Override PRD template
++-- doc_adr.md         # Override ADR template
++-- doc_generic.md     # Override fallback doc template
+```
+
+When you run `specflow story new`, for example, specflow checks `.specflow/templates/story.md` first. If it exists, that template is used. Otherwise, the built-in default is used.
+
+This lets you tailor templates per project -- for example, adapting story templates to match your team's ticket format or adding project-specific sections to PRDs.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) -- Installation, MCP setup, and first workflow
+- [CLI Reference](docs/cli-reference.md) -- Full command reference with flags and examples
+- [MCP Tools Reference](docs/mcp-tools.md) -- All MCP tool parameters and response formats
+- [Architecture](docs/architecture.md) -- System design, data models, and storage format
 
 ## Development
 
