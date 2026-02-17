@@ -54,7 +54,7 @@ func (s *Server) registerWriteTools() {
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_execution_complete",
-		Description: "Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them.",
+		Description: "Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them. Provide story slug to avoid scanning all stories.",
 	}, s.handleExecutionComplete)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -141,6 +141,7 @@ type executionStartInput struct {
 
 type executionCompleteInput struct {
 	ExecutionID string `json:"execution_id" jsonschema:"the execution ID to complete"`
+	Story       string `json:"story,omitempty" jsonschema:"story slug (avoids O(N) scan if provided)"`
 }
 
 type findingInput struct {
@@ -321,8 +322,15 @@ func (s *Server) handleDocWrite(_ context.Context, _ *mcp.CallToolRequest, input
 
 	// Try loading existing doc first.
 	existing, err := s.store.LoadDoc(input.Slug, input.Epic)
+	if err != nil && input.Epic == "" {
+		// Doc not found at project level — search under epics in case it lives there.
+		if found, _, findErr := s.findDoc(input.Slug); findErr == nil {
+			existing = found
+			err = nil
+		}
+	}
 	if err == nil {
-		// Update existing doc.
+		// Update existing doc, preserving its original epic scope.
 		existing.Title = input.Title
 		existing.Type = input.Type
 		existing.Body = input.Body
@@ -404,10 +412,13 @@ func (s *Server) handlePlanSave(_ context.Context, _ *mcp.CallToolRequest, input
 		status = models.PlanStatusDraft
 	}
 
+	gitRef, _ := git.CurrentRef() // best-effort; non-fatal if not in a git repo
+
 	p := &models.Plan{
-		Story:  input.Story,
-		Status: status,
-		Body:   input.Content,
+		Story:          input.Story,
+		Status:         status,
+		GitRefBaseline: gitRef,
+		Body:           input.Content,
 	}
 
 	if err := s.store.SavePlan(p, input.Story); err != nil {
@@ -440,6 +451,12 @@ func (s *Server) handleExecutionStart(_ context.Context, _ *mcp.CallToolRequest,
 		return errResultf("creating execution: %v", err), nil, nil
 	}
 
+	// Link plan if one exists for this story (best-effort).
+	if plan, planErr := s.store.LoadPlan(input.Story); planErr == nil {
+		e.Plan = plan.ID
+		_ = s.store.SaveExecution(e)
+	}
+
 	// Set story status to in_progress if not already.
 	st, err := s.findStory(input.Story)
 	if err == nil && st.Status != models.StoryStatusInProgress {
@@ -466,19 +483,27 @@ func (s *Server) handleExecutionComplete(_ context.Context, _ *mcp.CallToolReque
 		return errResult("execution_id is required"), nil, nil
 	}
 
-	// We need to find which story this execution belongs to.
-	// List all stories to find the execution.
-	stories, err := s.store.ListAllStories()
-	if err != nil {
-		return errResultf("listing stories to find execution: %v", err), nil, nil
-	}
-
 	var exec *models.Execution
-	for _, st := range stories {
-		e, loadErr := s.store.LoadExecution(st.Slug, input.ExecutionID)
-		if loadErr == nil {
-			exec = e
-			break
+
+	if input.Story != "" {
+		// Direct load when story slug is provided.
+		e, loadErr := s.store.LoadExecution(input.Story, input.ExecutionID)
+		if loadErr != nil {
+			return errResultf("execution %q not found for story %q", input.ExecutionID, input.Story), nil, nil
+		}
+		exec = e
+	} else {
+		// Fall back to scanning all stories for backwards compat.
+		stories, err := s.store.ListAllStories()
+		if err != nil {
+			return errResultf("listing stories to find execution: %v", err), nil, nil
+		}
+		for _, st := range stories {
+			e, loadErr := s.store.LoadExecution(st.Slug, input.ExecutionID)
+			if loadErr == nil {
+				exec = e
+				break
+			}
 		}
 	}
 

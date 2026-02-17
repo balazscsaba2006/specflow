@@ -251,10 +251,19 @@ func (s *Server) handleInitiativeShow(_ context.Context, _ *mcp.CallToolRequest,
 		}
 	}
 
-	if len(ini.Epics) > 0 {
-		b.WriteString("\n### Linked Epics\n")
-		for _, e := range ini.Epics {
-			fmt.Fprintf(&b, "- %s\n", e)
+	// Dynamically discover linked epics instead of reading ini.Epics (which is never populated).
+	if epics, listErr := s.store.ListEpics(); listErr == nil {
+		var linked []*models.Epic
+		for _, ep := range epics {
+			if ep.Initiative == ini.Slug {
+				linked = append(linked, ep)
+			}
+		}
+		if len(linked) > 0 {
+			b.WriteString("\n### Linked Epics\n")
+			for _, ep := range linked {
+				fmt.Fprintf(&b, "- %s — %s [%s]\n", ep.Slug, ep.Title, ep.Status)
+			}
 		}
 	}
 
@@ -414,6 +423,8 @@ func (s *Server) handleStoryNext(_ context.Context, _ *mcp.CallToolRequest, inpu
 		return errResultf("listing stories: %v", err), nil, nil
 	}
 
+	statusMap := buildStatusMap(allStories)
+
 	var candidates []*models.Story
 	for _, st := range allStories {
 		if st.Status != models.StoryStatusPlanned {
@@ -422,7 +433,7 @@ func (s *Server) handleStoryNext(_ context.Context, _ *mcp.CallToolRequest, inpu
 		if input.Epic != "" && st.Epic != input.Epic {
 			continue
 		}
-		if len(st.BlockedBy) > 0 {
+		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap) {
 			continue
 		}
 		candidates = append(candidates, st)
@@ -713,9 +724,11 @@ func (s *Server) handleBlocked(_ context.Context, _ *mcp.CallToolRequest, _ any)
 		return errResultf("listing stories: %v", err), nil, nil
 	}
 
+	statusMap := buildStatusMap(allStories)
+
 	var blocked []*models.Story
 	for _, st := range allStories {
-		if len(st.BlockedBy) > 0 {
+		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap) {
 			blocked = append(blocked, st)
 		}
 	}
@@ -734,7 +747,11 @@ func (s *Server) handleBlocked(_ context.Context, _ *mcp.CallToolRequest, _ any)
 		fmt.Fprintf(&b, "- **Status:** %s\n", st.Status)
 		b.WriteString("- **Blocked by:**\n")
 		for _, blocker := range st.BlockedBy {
-			fmt.Fprintf(&b, "  - %s\n", blocker)
+			status, ok := statusMap[blocker]
+			if !ok {
+				status = "unknown"
+			}
+			fmt.Fprintf(&b, "  - %s (%s)\n", blocker, status)
 		}
 		b.WriteString("\n")
 	}
@@ -1152,6 +1169,26 @@ func parseScopeSections(body string) (inScope, outScope string, userStories []st
 	flushSection()
 
 	return inScope, outScope, userStories
+}
+
+// buildStatusMap creates a slug→status lookup from a list of stories.
+func buildStatusMap(stories []*models.Story) map[string]string {
+	m := make(map[string]string, len(stories))
+	for _, st := range stories {
+		m[st.Slug] = st.Status
+	}
+	return m
+}
+
+// allBlockersDone returns true if every slug in blockedBy maps to "done" status.
+func allBlockersDone(blockedBy []string, statusMap map[string]string) bool {
+	for _, slug := range blockedBy {
+		status, ok := statusMap[slug]
+		if !ok || status != models.StoryStatusDone {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) handleDiffCheck(_ context.Context, _ *mcp.CallToolRequest, input epicRequiredInput) (*mcp.CallToolResult, any, error) {
