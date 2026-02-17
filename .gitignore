@@ -2,7 +2,7 @@
 .idea/
 
 # Go binary
-specflow
+/specflow
 
 # Build output
 dist/

@@ -171,7 +171,29 @@ All artifacts use YAML frontmatter separated by `---` + markdown body:
 - ULIDs are sortable by creation time without needing a sequence counter
 
 ### File Layout
-See IMPLEMENTATION_PLAN.md for the complete .specflow/ directory structure.
+```
+.specflow/
+├── config.yaml                              # Project configuration
+├── log.jsonl                                # Activity log (append-only)
+├── templates/                               # User-customizable templates
+├── initiatives/
+│   └── {slug}/
+│       └── initiative.md
+├── epics/
+│   └── {slug}/
+│       ├── epic.md
+│       ├── docs/                            # Specs/PRDs/ADRs scoped to this epic
+│       └── stories/
+├── stories/                                 # Standalone stories (no epic)
+├── docs/                                    # Project-level docs
+├── decisions/                               # Lightweight decision log
+└── executions/                              # Flat, referenced by story ID
+    └── {story-slug}/
+        └── {exec-id}/
+            ├── plan.md
+            ├── verification.md
+            └── meta.yaml
+```
 
 ---
 
@@ -190,10 +212,11 @@ See IMPLEMENTATION_PLAN.md for the complete .specflow/ directory structure.
 - Keep responses focused — don't return the entire project state for a single story query
 
 ### Behavioral Tool Descriptions
-MCP tool descriptions include behavioral instructions that tell Claude Code HOW to interact with the user when using that tool. These are not just API docs — they embed the working style from the "Who I Am" section. See IMPLEMENTATION_PLAN.md for full tool specifications.
+MCP tool descriptions include behavioral instructions that tell Claude Code HOW to interact with the user when using that tool. These are not just API docs — they embed the working style from the "Who I Am" section.
 
 ---
 
 ## Related Documentation
 
-- [Implementation Plan](./IMPLEMENTATION_PLAN.md) — Complete architecture, data models, CLI commands, MCP tools, templates, and build phases
+- [CLI Reference](./docs/cli-reference.md) — Full CLI command documentation
+- [Architecture](./docs/architecture.md) — System design, storage format, and data models
