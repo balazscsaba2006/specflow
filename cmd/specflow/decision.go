@@ -5,6 +5,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -91,7 +92,7 @@ func newDecisionLsCmd() *cobra.Command {
 			headers := []string{"SLUG", "DATE", "TITLE", "STATUS"}
 			rows := make([][]string, len(decisions))
 			for idx, d := range decisions {
-				rows[idx] = []string{d.Slug, d.Date, d.Title, d.Status}
+				rows[idx] = []string{d.Slug, d.Date, d.Title, ui.StatusBadge(d.Status)}
 			}
 
 			printTable(headers, rows)
@@ -111,11 +112,11 @@ func newDecisionShowCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("ID:       %s\n", d.ID)
-			fmt.Printf("Slug:     %s\n", d.Slug)
-			fmt.Printf("Date:     %s\n", d.Date)
-			fmt.Printf("Title:    %s\n", d.Title)
-			fmt.Printf("Status:   %s\n", d.Status)
+			fmt.Printf("%s  %s\n", ui.Label("ID:"), d.ID)
+			fmt.Printf("%s  %s\n", ui.Label("Slug:"), d.Slug)
+			fmt.Printf("%s  %s\n", ui.Label("Date:"), d.Date)
+			fmt.Printf("%s  %s\n", ui.Label("Title:"), d.Title)
+			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(d.Status))
 
 			if len(d.ContextRefs) > 0 {
 				fmt.Println("Context Refs:")

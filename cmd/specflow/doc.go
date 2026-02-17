@@ -7,6 +7,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -190,7 +191,7 @@ func newDocLsCmd() *cobra.Command {
 			headers := []string{"SLUG", "TYPE", "TITLE", "STATUS", "EPIC"}
 			rows := make([][]string, len(docs))
 			for idx, d := range docs {
-				rows[idx] = []string{d.Slug, d.Type, d.Title, d.Status, d.Epic}
+				rows[idx] = []string{d.Slug, d.Type, d.Title, ui.StatusBadge(d.Status), d.Epic}
 			}
 
 			printTable(headers, rows)
@@ -217,14 +218,14 @@ func newDocShowCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("ID:       %s\n", d.ID)
-			fmt.Printf("Slug:     %s\n", d.Slug)
-			fmt.Printf("Type:     %s\n", d.Type)
-			fmt.Printf("Title:    %s\n", d.Title)
-			fmt.Printf("Status:   %s\n", d.Status)
-			fmt.Printf("Epic:     %s\n", d.Epic)
-			fmt.Printf("Created:  %s\n", d.Created.Format("2006-01-02 15:04:05"))
-			fmt.Printf("Updated:  %s\n", d.Updated.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("ID:"), d.ID)
+			fmt.Printf("%s  %s\n", ui.Label("Slug:"), d.Slug)
+			fmt.Printf("%s  %s\n", ui.Label("Type:"), d.Type)
+			fmt.Printf("%s  %s\n", ui.Label("Title:"), d.Title)
+			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(d.Status))
+			fmt.Printf("%s  %s\n", ui.Label("Epic:"), d.Epic)
+			fmt.Printf("%s  %s\n", ui.Label("Created:"), d.Created.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("Updated:"), d.Updated.Format("2006-01-02 15:04:05"))
 
 			if len(d.OpenQuestions) > 0 {
 				fmt.Println("Open Questions:")

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/balazscsaba2006/specflow/internal/models"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -45,12 +46,12 @@ func showProjectStatus() error {
 	counts := countByStatus(allStories)
 	done := counts[models.StoryStatusDone]
 
-	fmt.Println("=== Project Status ===")
+	fmt.Println(ui.Header("Project Status"))
 	fmt.Println()
 
 	if total > 0 {
-		pct := float64(done) / float64(total) * 100
-		fmt.Printf("Stories: %d total, %d done (%.0f%%)\n", total, done, pct)
+		fmt.Printf("%s  %s\n", ui.Label("Stories:"), fmt.Sprintf("%d total, %d done", total, done))
+		fmt.Printf("%s  %s\n", ui.Label("Progress:"), ui.ProgressBar(done, total, 20))
 		printStatusCounts(counts)
 		fmt.Println()
 	}
@@ -69,18 +70,12 @@ func showProjectStatus() error {
 			epicCounts := countByStatus(epicStories)
 			epicDone := epicCounts[models.StoryStatusDone]
 
-			progress := "—"
-			if epicTotal > 0 {
-				pct := float64(epicDone) / float64(epicTotal) * 100
-				progress = fmt.Sprintf("%.0f%%", pct)
-			}
-
 			rows = append(rows, []string{
 				e.Slug,
-				e.Status,
+				ui.StatusBadge(e.Status),
 				fmt.Sprintf("%d", epicTotal),
 				fmt.Sprintf("%d", epicDone),
-				progress,
+				ui.ProgressBar(epicDone, epicTotal, 15),
 			})
 		}
 
@@ -95,7 +90,7 @@ func showProjectStatus() error {
 	if len(standalone) > 0 {
 		standaloneCount := countByStatus(standalone)
 		standaloneDone := standaloneCount[models.StoryStatusDone]
-		fmt.Printf("\nStandalone stories: %d total, %d done\n", len(standalone), standaloneDone)
+		fmt.Printf("\n%s  %d total, %d done  %s\n", ui.Label("Standalone:"), len(standalone), standaloneDone, ui.ProgressBar(standaloneDone, len(standalone), 15))
 	}
 
 	return nil
@@ -117,16 +112,16 @@ func showEntityStatus(slug string) error {
 }
 
 func printInitiativeStatus(i *models.Initiative) error {
-	fmt.Printf("Type:       Initiative\n")
-	fmt.Printf("Slug:       %s\n", i.Slug)
-	fmt.Printf("Title:      %s\n", i.Title)
-	fmt.Printf("Status:     %s\n", i.Status)
-	fmt.Printf("Goal:       %s\n", i.Goal)
+	fmt.Printf("%s  Initiative\n", ui.Label("Type:"))
+	fmt.Printf("%s  %s\n", ui.Label("Slug:"), i.Slug)
+	fmt.Printf("%s  %s\n", ui.Label("Title:"), i.Title)
+	fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(i.Status))
+	fmt.Printf("%s  %s\n", ui.Label("Goal:"), i.Goal)
 	if len(i.Epics) > 0 {
-		fmt.Printf("Epics:      %s\n", strings.Join(i.Epics, ", "))
+		fmt.Printf("%s  %s\n", ui.Label("Epics:"), strings.Join(i.Epics, ", "))
 	}
 	if len(i.OpenQuestions) > 0 {
-		fmt.Printf("Open Qs:    %d\n", len(i.OpenQuestions))
+		fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(i.OpenQuestions))
 	}
 	return nil
 }
@@ -139,25 +134,25 @@ func printEpicStatus(e *models.Epic) error {
 	counts := countByStatus(stories)
 	done := counts[models.StoryStatusDone]
 
-	fmt.Printf("Type:       Epic\n")
-	fmt.Printf("Slug:       %s\n", e.Slug)
-	fmt.Printf("Title:      %s\n", e.Title)
-	fmt.Printf("Status:     %s\n", e.Status)
+	fmt.Printf("%s  Epic\n", ui.Label("Type:"))
+	fmt.Printf("%s  %s\n", ui.Label("Slug:"), e.Slug)
+	fmt.Printf("%s  %s\n", ui.Label("Title:"), e.Title)
+	fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(e.Status))
 	if e.Initiative != "" {
-		fmt.Printf("Initiative: %s\n", e.Initiative)
+		fmt.Printf("%s  %s\n", ui.Label("Initiative:"), e.Initiative)
 	}
 
 	total := len(stories)
 	if total > 0 {
-		pct := float64(done) / float64(total) * 100
-		fmt.Printf("Stories:    %d total, %d done (%.0f%%)\n", total, done, pct)
+		fmt.Printf("%s  %d total, %d done\n", ui.Label("Stories:"), total, done)
+		fmt.Printf("%s  %s\n", ui.Label("Progress:"), ui.ProgressBar(done, total, 20))
 		printStatusCounts(counts)
 	} else {
-		fmt.Println("Stories:    none")
+		fmt.Printf("%s  none\n", ui.Label("Stories:"))
 	}
 
 	if len(e.OpenQuestions) > 0 {
-		fmt.Printf("Open Qs:    %d\n", len(e.OpenQuestions))
+		fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(e.OpenQuestions))
 	}
 	return nil
 }
@@ -173,22 +168,22 @@ func printStoryStatus(slug string) error {
 			continue
 		}
 
-		fmt.Printf("Type:       Story\n")
-		fmt.Printf("Slug:       %s\n", st.Slug)
-		fmt.Printf("Title:      %s\n", st.Title)
-		fmt.Printf("Status:     %s\n", st.Status)
-		fmt.Printf("Priority:   %s\n", st.Priority)
+		fmt.Printf("%s  Story\n", ui.Label("Type:"))
+		fmt.Printf("%s  %s\n", ui.Label("Slug:"), st.Slug)
+		fmt.Printf("%s  %s\n", ui.Label("Title:"), st.Title)
+		fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(st.Status))
+		fmt.Printf("%s  %s\n", ui.Label("Priority:"), ui.PriorityBadge(st.Priority))
 		if st.Epic != "" {
-			fmt.Printf("Epic:       %s\n", st.Epic)
+			fmt.Printf("%s  %s\n", ui.Label("Epic:"), st.Epic)
 		}
 		if len(st.BlockedBy) > 0 {
-			fmt.Printf("Blocked By: %s\n", strings.Join(st.BlockedBy, ", "))
+			fmt.Printf("%s  %s\n", ui.Label("Blocked By:"), strings.Join(st.BlockedBy, ", "))
 		}
 		if len(st.OpenQuestions) > 0 {
-			fmt.Printf("Open Qs:    %d\n", len(st.OpenQuestions))
+			fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(st.OpenQuestions))
 		}
 		if len(st.Assumptions) > 0 {
-			fmt.Printf("Assumptions: %d\n", len(st.Assumptions))
+			fmt.Printf("%s  %d\n", ui.Label("Assumptions:"), len(st.Assumptions))
 		}
 		return nil
 	}
@@ -217,7 +212,7 @@ func printStatusCounts(counts map[string]int) {
 	parts := make([]string, 0, len(order))
 	for _, s := range order {
 		if c, ok := counts[s]; ok && c > 0 {
-			parts = append(parts, fmt.Sprintf("%s:%d", s, c))
+			parts = append(parts, fmt.Sprintf("%s:%d", ui.StatusBadge(s), c))
 		}
 	}
 

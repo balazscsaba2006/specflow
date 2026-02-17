@@ -7,6 +7,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -111,7 +112,7 @@ func newEpicLsCmd() *cobra.Command {
 			headers := []string{"SLUG", "TITLE", "STATUS", "INITIATIVE"}
 			rows := make([][]string, len(epics))
 			for idx, e := range epics {
-				rows[idx] = []string{e.Slug, e.Title, e.Status, e.Initiative}
+				rows[idx] = []string{e.Slug, e.Title, ui.StatusBadge(e.Status), e.Initiative}
 			}
 
 			printTable(headers, rows)
@@ -135,13 +136,13 @@ func newEpicShowCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("ID:          %s\n", e.ID)
-			fmt.Printf("Slug:        %s\n", e.Slug)
-			fmt.Printf("Title:       %s\n", e.Title)
-			fmt.Printf("Status:      %s\n", e.Status)
-			fmt.Printf("Initiative:  %s\n", e.Initiative)
-			fmt.Printf("Created:     %s\n", e.Created.Format("2006-01-02 15:04:05"))
-			fmt.Printf("Updated:     %s\n", e.Updated.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("ID:"), e.ID)
+			fmt.Printf("%s  %s\n", ui.Label("Slug:"), e.Slug)
+			fmt.Printf("%s  %s\n", ui.Label("Title:"), e.Title)
+			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(e.Status))
+			fmt.Printf("%s  %s\n", ui.Label("Initiative:"), e.Initiative)
+			fmt.Printf("%s  %s\n", ui.Label("Created:"), e.Created.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("Updated:"), e.Updated.Format("2006-01-02 15:04:05"))
 
 			if len(e.Phases) > 0 {
 				fmt.Println("Phases:")

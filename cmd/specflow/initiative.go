@@ -7,6 +7,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +89,7 @@ func newInitiativeLsCmd() *cobra.Command {
 			headers := []string{"SLUG", "TITLE", "STATUS"}
 			rows := make([][]string, len(initiatives))
 			for idx, i := range initiatives {
-				rows[idx] = []string{i.Slug, i.Title, i.Status}
+				rows[idx] = []string{i.Slug, i.Title, ui.StatusBadge(i.Status)}
 			}
 
 			printTable(headers, rows)
@@ -108,13 +109,13 @@ func newInitiativeShowCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("ID:       %s\n", i.ID)
-			fmt.Printf("Slug:     %s\n", i.Slug)
-			fmt.Printf("Title:    %s\n", i.Title)
-			fmt.Printf("Status:   %s\n", i.Status)
-			fmt.Printf("Goal:     %s\n", i.Goal)
-			fmt.Printf("Created:  %s\n", i.Created.Format("2006-01-02 15:04:05"))
-			fmt.Printf("Updated:  %s\n", i.Updated.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("ID:"), i.ID)
+			fmt.Printf("%s  %s\n", ui.Label("Slug:"), i.Slug)
+			fmt.Printf("%s  %s\n", ui.Label("Title:"), i.Title)
+			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(i.Status))
+			fmt.Printf("%s  %s\n", ui.Label("Goal:"), i.Goal)
+			fmt.Printf("%s  %s\n", ui.Label("Created:"), i.Created.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("Updated:"), i.Updated.Format("2006-01-02 15:04:05"))
 
 			if len(i.SuccessCriteria) > 0 {
 				fmt.Println("Success Criteria:")

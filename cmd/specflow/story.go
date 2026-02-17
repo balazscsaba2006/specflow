@@ -7,6 +7,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -134,8 +135,8 @@ func newStoryLsCmd() *cobra.Command {
 				rows[idx] = []string{
 					st.Slug,
 					st.Title,
-					st.Status,
-					st.Priority,
+					ui.StatusBadge(st.Status),
+					ui.PriorityBadge(st.Priority),
 					st.Epic,
 					strings.Join(st.Labels, ", "),
 				}
@@ -167,14 +168,14 @@ func newStoryShowCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("ID:        %s\n", st.ID)
-			fmt.Printf("Slug:      %s\n", st.Slug)
-			fmt.Printf("Title:     %s\n", st.Title)
-			fmt.Printf("Status:    %s\n", st.Status)
-			fmt.Printf("Priority:  %s\n", st.Priority)
-			fmt.Printf("Epic:      %s\n", st.Epic)
-			fmt.Printf("Created:   %s\n", st.Created.Format("2006-01-02 15:04:05"))
-			fmt.Printf("Updated:   %s\n", st.Updated.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("ID:"), st.ID)
+			fmt.Printf("%s  %s\n", ui.Label("Slug:"), st.Slug)
+			fmt.Printf("%s  %s\n", ui.Label("Title:"), st.Title)
+			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(st.Status))
+			fmt.Printf("%s  %s\n", ui.Label("Priority:"), ui.PriorityBadge(st.Priority))
+			fmt.Printf("%s  %s\n", ui.Label("Epic:"), st.Epic)
+			fmt.Printf("%s  %s\n", ui.Label("Created:"), st.Created.Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s  %s\n", ui.Label("Updated:"), st.Updated.Format("2006-01-02 15:04:05"))
 
 			if len(st.BlockedBy) > 0 {
 				fmt.Println("Blocked By:")
