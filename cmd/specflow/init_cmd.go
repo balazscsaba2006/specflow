@@ -47,10 +47,10 @@ func newInitCmd() *cobra.Command {
 			fmt.Println("Initialized specflow project in", cwd)
 
 			if withClaude {
-				if err := setupClaudeSettings(cwd); err != nil {
-					return fmt.Errorf("setting up Claude settings: %w", err)
+				if err := setupMCPConfig(cwd); err != nil {
+					return fmt.Errorf("setting up MCP config: %w", err)
 				}
-				fmt.Println("Added specflow MCP server to .claude/settings.local.json")
+				fmt.Println("Added specflow MCP server to .mcp.json")
 
 				if err := installSkill(cwd, root); err != nil {
 					return fmt.Errorf("installing skill: %w", err)
@@ -62,7 +62,7 @@ func newInitCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&withClaude, "with-claude", false, "Also configure .claude/settings.local.json with specflow MCP server")
+	cmd.Flags().BoolVar(&withClaude, "with-claude", false, "Also configure .mcp.json and install the Claude Code workflow skill")
 
 	return cmd
 }
@@ -84,29 +84,23 @@ func installSkill(projectRoot, specflowRoot string) error {
 	return os.WriteFile(skillPath, []byte(content), 0o600)
 }
 
-// setupClaudeSettings creates or updates .claude/settings.local.json with the specflow MCP server entry.
-func setupClaudeSettings(projectRoot string) error {
-	claudeDir := filepath.Join(projectRoot, ".claude")
-	settingsPath := filepath.Join(claudeDir, "settings.local.json")
+// setupMCPConfig creates or updates .mcp.json with the specflow MCP server entry.
+func setupMCPConfig(projectRoot string) error {
+	mcpPath := filepath.Join(projectRoot, ".mcp.json")
 
-	// Ensure .claude/ directory exists.
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		return fmt.Errorf("creating .claude directory: %w", err)
-	}
-
-	// Read existing settings or start fresh.
-	settings := make(map[string]interface{})
-	data, readErr := os.ReadFile(settingsPath)
+	// Read existing config or start fresh.
+	mcpConfig := make(map[string]interface{})
+	data, readErr := os.ReadFile(mcpPath)
 	if readErr == nil {
-		if unmarshalErr := json.Unmarshal(data, &settings); unmarshalErr != nil {
-			return fmt.Errorf("parsing existing settings.local.json: %w", unmarshalErr)
+		if unmarshalErr := json.Unmarshal(data, &mcpConfig); unmarshalErr != nil {
+			return fmt.Errorf("parsing existing .mcp.json: %w", unmarshalErr)
 		}
 	} else if !os.IsNotExist(readErr) {
-		return fmt.Errorf("reading settings.local.json: %w", readErr)
+		return fmt.Errorf("reading .mcp.json: %w", readErr)
 	}
 
 	// Merge specflow into mcpServers.
-	mcpServers, ok := settings["mcpServers"].(map[string]interface{})
+	mcpServers, ok := mcpConfig["mcpServers"].(map[string]interface{})
 	if !ok {
 		mcpServers = make(map[string]interface{})
 	}
@@ -114,13 +108,13 @@ func setupClaudeSettings(projectRoot string) error {
 		"command": "specflow",
 		"args":    []string{"mcp"},
 	}
-	settings["mcpServers"] = mcpServers
+	mcpConfig["mcpServers"] = mcpServers
 
 	// Write back with indentation.
-	out, err := json.MarshalIndent(settings, "", "  ")
+	out, err := json.MarshalIndent(mcpConfig, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling settings.local.json: %w", err)
+		return fmt.Errorf("marshaling .mcp.json: %w", err)
 	}
 
-	return os.WriteFile(settingsPath, append(out, '\n'), 0o600)
+	return os.WriteFile(mcpPath, append(out, '\n'), 0o600)
 }

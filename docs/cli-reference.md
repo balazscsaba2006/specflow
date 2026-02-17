@@ -32,7 +32,7 @@ Initialize a new specflow project. Creates the `.specflow/` directory structure 
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--with-claude` | bool | `false` | Configure `.claude/settings.local.json` with MCP server and install workflow skill to `.claude/skills/specflow/SKILL.md` |
+| `--with-claude` | bool | `false` | Configure `.mcp.json` with MCP server and install workflow skill to `.claude/skills/specflow/SKILL.md` |
 
 ---
 
@@ -799,6 +799,6 @@ Delete a template override, reverting to the embedded default.
 specflow mcp
 ```
 
-Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.claude/settings.local.json`.
+Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.mcp.json`.
 
 The MCP server exposes 30+ tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.

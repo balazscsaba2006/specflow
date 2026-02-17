@@ -57,7 +57,7 @@ This does two things:
 
 1. **Creates `.specflow/`** -- the directory where all artifacts (epics, stories, docs, decisions, plans) are stored as markdown files with YAML frontmatter.
 
-2. **Creates `.claude/settings.local.json`** -- registers specflow as an MCP server so Claude Code can use `sf_*` tools automatically.
+2. **Creates `.mcp.json`** -- registers specflow as an MCP server so Claude Code can use `sf_*` tools automatically.
 
 The generated MCP entry looks like:
 
@@ -80,7 +80,7 @@ The generated MCP entry looks like:
 
 If you already ran `specflow init` without `--with-claude`, or need to configure MCP manually:
 
-1. Create `.claude/settings.local.json` in your project root (or edit the existing one):
+1. Create `.mcp.json` in your project root (or edit the existing one):
 
 ```json
 {
