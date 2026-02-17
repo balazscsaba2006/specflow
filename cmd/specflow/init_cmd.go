@@ -50,7 +50,7 @@ func newInitCmd() *cobra.Command {
 				if err := setupClaudeSettings(cwd); err != nil {
 					return fmt.Errorf("setting up Claude settings: %w", err)
 				}
-				fmt.Println("Added specflow MCP server to .claude/settings.json")
+				fmt.Println("Added specflow MCP server to .claude/settings.local.json")
 
 				if err := installSkill(cwd, root); err != nil {
 					return fmt.Errorf("installing skill: %w", err)
@@ -62,7 +62,7 @@ func newInitCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&withClaude, "with-claude", false, "Also configure .claude/settings.json with specflow MCP server")
+	cmd.Flags().BoolVar(&withClaude, "with-claude", false, "Also configure .claude/settings.local.json with specflow MCP server")
 
 	return cmd
 }
@@ -84,10 +84,10 @@ func installSkill(projectRoot, specflowRoot string) error {
 	return os.WriteFile(skillPath, []byte(content), 0o600)
 }
 
-// setupClaudeSettings creates or updates .claude/settings.json with the specflow MCP server entry.
+// setupClaudeSettings creates or updates .claude/settings.local.json with the specflow MCP server entry.
 func setupClaudeSettings(projectRoot string) error {
 	claudeDir := filepath.Join(projectRoot, ".claude")
-	settingsPath := filepath.Join(claudeDir, "settings.json")
+	settingsPath := filepath.Join(claudeDir, "settings.local.json")
 
 	// Ensure .claude/ directory exists.
 	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
@@ -99,10 +99,10 @@ func setupClaudeSettings(projectRoot string) error {
 	data, readErr := os.ReadFile(settingsPath)
 	if readErr == nil {
 		if unmarshalErr := json.Unmarshal(data, &settings); unmarshalErr != nil {
-			return fmt.Errorf("parsing existing settings.json: %w", unmarshalErr)
+			return fmt.Errorf("parsing existing settings.local.json: %w", unmarshalErr)
 		}
 	} else if !os.IsNotExist(readErr) {
-		return fmt.Errorf("reading settings.json: %w", readErr)
+		return fmt.Errorf("reading settings.local.json: %w", readErr)
 	}
 
 	// Merge specflow into mcpServers.
@@ -119,7 +119,7 @@ func setupClaudeSettings(projectRoot string) error {
 	// Write back with indentation.
 	out, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling settings.json: %w", err)
+		return fmt.Errorf("marshaling settings.local.json: %w", err)
 	}
 
 	return os.WriteFile(settingsPath, append(out, '\n'), 0o600)
