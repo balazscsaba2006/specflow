@@ -66,7 +66,7 @@ specflow mcp           # MCP mode -- Claude Code reads/writes via stdio
 - **From source:** `go install github.com/balazscsaba2006/specflow/cmd/specflow@latest`
 - **Pre-built binaries:** Download from [GitHub Releases](https://github.com/balazscsaba2006/specflow/releases) (Linux, macOS, Windows -- amd64 and arm64)
 
-See [Getting Started](docs/getting-started.md) for detailed setup instructions including MCP configuration.
+See [Getting Started](docs/getting-started.md) for detailed setup instructions including MCP configuration and skill installation.
 
 ## The Hierarchy
 
@@ -101,6 +101,7 @@ Everything upward is optional:
 | `specflow search` | | Full-text search across all artifacts |
 | `specflow import` | | Import an existing markdown file as an artifact |
 | `specflow mode` | | Show or set project mode (`fast` / `careful`) |
+| `specflow template` | `tmpl` | List, override, and reset templates |
 | `specflow mcp` | | Start MCP server on stdio for Claude Code |
 | `specflow version` | | Print version information |
 
@@ -108,14 +109,26 @@ Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `s
 
 ### Document Types
 
+Documents are formal artifacts that live in the docs hierarchy and can be scoped to an epic.
+
 | Type | Flag | Purpose |
 |------|------|---------|
 | PRD | `--type prd` | Problem, users, goals, scope, requirements, risks |
-| Tech Spec | `--type tech-spec` | Architecture, data model, API changes, testing strategy |
-| API Spec | `--type api-spec` | Endpoint contracts and schemas |
-| Design Spec | `--type design-spec` | UI/UX design specifications |
-| ADR | `--type adr` | Architecture Decision Record (context, decision, consequences) |
-| One-Pager | `--type one-pager` | Lightweight proposal (problem, solution, metrics) |
+| Tech Spec | `--type tech-spec` | Architecture, data model, API changes, constraints |
+| API Spec | `--type api-spec` | Endpoint contracts, auth, rate limiting, versioning |
+| Design Spec | `--type design-spec` | Problem, goals, non-goals, component design, trade-offs |
+| ADR | `--type adr` | Architecture Decision Record -- formal, with alternatives considered |
+| One-Pager | `--type one-pager` | Lightweight proposal: TL;DR, problem, solution, trade-offs |
+
+Each type has a dedicated template with type-specific sections. See `specflow template ls` for the full list.
+
+### Decisions vs ADR Docs
+
+specflow has two ways to record decisions:
+
+- **`specflow decision new`** -- A lightweight decision record. Lives in `.specflow/decisions/`. Use for quick choices made during planning or implementation (e.g., "use JWT over sessions", "store files in S3"). No epic scope, no open questions tracking.
+
+- **`specflow doc new --type adr`** -- A full Architecture Decision Record. Lives in the docs hierarchy, can be scoped to an epic, tracks open questions, and has a full status lifecycle (`draft` → `review` → `approved`). Use for significant architectural choices that need team visibility or formal review.
 
 ## MCP Tools
 
@@ -251,23 +264,41 @@ This is useful when specflow is purely a personal planning layer and you don't w
 
 ### Template Customization
 
-specflow ships with built-in templates for all artifact types. You can override any template per-project by placing a file in `.specflow/templates/`:
+specflow ships with built-in templates for all artifact types. Every doc type has a dedicated template with type-specific sections -- no generic fallback needed for supported types.
 
-```
-.specflow/templates/
-+-- initiative.md      # Override initiative creation template
-+-- epic.md            # Override epic creation template
-+-- story.md           # Override story creation template (careful mode)
-+-- story_fast.md      # Override story creation template (fast mode)
-+-- decision.md        # Override decision creation template
-+-- doc_prd.md         # Override PRD template
-+-- doc_adr.md         # Override ADR template
-+-- doc_generic.md     # Override fallback doc template
+Override any template per-project using the `template` command:
+
+```sh
+specflow template ls                    # List all templates and override status
+specflow template override tech-spec    # Copy to .specflow/templates/doc_tech-spec.md
+specflow template reset tech-spec       # Remove override, revert to default
 ```
 
-When you run `specflow story new`, for example, specflow checks `.specflow/templates/story.md` first. If it exists, that template is used. Otherwise, the built-in default is used.
+Available templates:
 
-This lets you tailor templates per project -- for example, adapting story templates to match your team's ticket format or adding project-specific sections to PRDs.
+| Template | Used by |
+|----------|---------|
+| `initiative` | `specflow initiative new` |
+| `epic` | `specflow epic new` |
+| `story` | `specflow story new` (careful mode) |
+| `story_fast` | `specflow story new` (fast mode) |
+| `decision` | `specflow decision new` |
+| `doc_prd` | `specflow doc new --type prd` |
+| `doc_tech-spec` | `specflow doc new --type tech-spec` |
+| `doc_api-spec` | `specflow doc new --type api-spec` |
+| `doc_design-spec` | `specflow doc new --type design-spec` |
+| `doc_adr` | `specflow doc new --type adr` |
+| `doc_one-pager` | `specflow doc new --type one-pager` |
+| `doc_generic` | Fallback for unknown doc types |
+| `skill` | Claude Code workflow skill |
+
+Resolution order: `.specflow/templates/<name>.md` (project override) → embedded default.
+
+### Claude Code Skill
+
+`specflow init --with-claude` installs a Claude Code skill to `.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: context building, quality gates, verification loops, and working style conventions. It teaches Claude Code how to orchestrate `sf_*` tools in the right sequence.
+
+The skill source is embedded in the binary (`templates/skill.md`). Edit the installed skill directly at `.claude/skills/specflow/SKILL.md` to customize the workflow for your project.
 
 ## Documentation
 

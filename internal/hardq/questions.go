@@ -65,6 +65,36 @@ var questions = map[EntityType][]string{
 		"Is the testing strategy sufficient? What's untested?",
 		"What's the operational overhead of this approach?",
 	},
+	APISpec: {
+		"What breaks for existing consumers if this ships?",
+		"How will this API be versioned when breaking changes are needed?",
+		"Are error contracts specific enough for clients to handle programmatically?",
+		"What happens when authentication fails mid-session?",
+		"What's the rate limiting behavior — hard cutoff or degraded service?",
+		"Are there pagination or payload size limits that could bite large consumers?",
+	},
+	DesignSpec: {
+		"What coupling does this design introduce between components?",
+		"What's the migration path from the current design to this one?",
+		"Does this hold up at 10x the expected scale?",
+		"How do you test this design in isolation?",
+		"What's the simplest version that validates the core idea?",
+		"What happens if the key assumption is wrong?",
+	},
+	ADR: {
+		"Are the alternatives genuine contenders or straw men?",
+		"What's the cost of reversing this decision in 6 months?",
+		"What assumption, if wrong, invalidates this decision?",
+		"Who is affected by this decision that wasn't consulted?",
+		"Is this decision being made at the right time, or too early/late?",
+	},
+	OnePager: {
+		"Is this actually a disguised epic that needs decomposition?",
+		"What's the minimum experiment to validate the core hypothesis?",
+		"What happens if we don't do this at all?",
+		"Is the proposed solution the only way, or just the first idea?",
+		"Who needs to approve this, and what would make them say no?",
+	},
 }
 
 // ReviewPrompt returns the review prompt template for the given doc type.

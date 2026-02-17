@@ -32,7 +32,7 @@ Initialize a new specflow project. Creates the `.specflow/` directory structure 
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--with-claude` | bool | `false` | Also configure `.claude/settings.json` with the specflow MCP server entry |
+| `--with-claude` | bool | `false` | Configure `.claude/settings.json` with MCP server and install workflow skill to `.claude/skills/specflow/SKILL.md` |
 
 ---
 
@@ -452,7 +452,7 @@ Create, list, show, and edit documents (PRDs, tech specs, ADRs, etc.).
 specflow doc new <slug> --type <type> [flags]
 ```
 
-Create a new document. Opens `$EDITOR` with a type-specific template (PRDs and ADRs have structured templates; other types use a generic template). The `--type` flag is required.
+Create a new document. Opens `$EDITOR` with a type-specific template. Every supported type (PRD, tech-spec, api-spec, design-spec, ADR, one-pager) has a dedicated template with relevant sections. Unknown types fall back to a generic template. The `--type` flag is required.
 
 **Arguments:**
 
@@ -531,9 +531,11 @@ specflow decision [subcommand]
 specflow dec [subcommand]
 ```
 
-Create, list, and show architectural decisions.
+Create, list, and show lightweight decision records.
 
 **Alias:** `dec`
+
+Decisions are quick, lightweight choice records that live in `.specflow/decisions/`. For formal Architecture Decision Records with epic scope, open questions, and status tracking, use `specflow doc new --type adr` instead.
 
 ### decision new
 
@@ -541,7 +543,7 @@ Create, list, and show architectural decisions.
 specflow decision new <slug>
 ```
 
-Create a new decision. Opens `$EDITOR` with a template containing Context, Decision, and Consequences sections. The date is auto-set to today if not specified in the frontmatter.
+Create a new decision. Opens `$EDITOR` with a template containing Context, Alternatives Considered, Decision, and Consequences sections. The date is auto-set to today if not specified in the frontmatter.
 
 **Arguments:**
 
@@ -729,6 +731,65 @@ Without arguments, shows the current mode. With an argument, sets the mode and p
 | Story templates | Title + acceptance only | Full template with all fields |
 | Hard questions | Suppressed via MCP | Always included |
 | Verification prompt | Only on explicit request | Prompted after every execution |
+
+---
+
+## template
+
+```
+specflow template [subcommand]
+specflow tmpl [subcommand]
+```
+
+Manage specflow templates. List, override, and reset templates.
+
+**Alias:** `tmpl`
+
+### template ls
+
+```
+specflow template ls
+```
+
+List all available templates and whether a project override exists for each. Outputs a table with columns: TEMPLATE, OVERRIDE.
+
+### template override
+
+```
+specflow template override <name>
+```
+
+Copy an embedded default template to `.specflow/templates/` for per-project customization.
+
+For doc types, use the short name (e.g., `tech-spec` instead of `doc_tech-spec`). For entity types, use the name directly (e.g., `story`, `epic`, `initiative`).
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `name` | yes | Template name: `story`, `story_fast`, `epic`, `initiative`, `decision`, `skill`, `prd`, `tech-spec`, `api-spec`, `design-spec`, `adr`, `one-pager`, `generic` |
+
+**Examples:**
+
+```sh
+specflow template override tech-spec    # → .specflow/templates/doc_tech-spec.md
+specflow template override story        # → .specflow/templates/story.md
+specflow template override skill        # → .specflow/templates/skill.md
+```
+
+### template reset
+
+```
+specflow template reset <name>
+```
+
+Delete a template override, reverting to the embedded default.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `name` | yes | Template name (same values as `override`) |
 
 ---
 

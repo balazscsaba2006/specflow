@@ -8,6 +8,7 @@ import (
 
 	"github.com/balazscsaba2006/specflow/internal/config"
 	"github.com/balazscsaba2006/specflow/internal/store"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,11 @@ func newInitCmd() *cobra.Command {
 					return fmt.Errorf("setting up Claude settings: %w", err)
 				}
 				fmt.Println("Added specflow MCP server to .claude/settings.json")
+
+				if err := installSkill(cwd, root); err != nil {
+					return fmt.Errorf("installing skill: %w", err)
+				}
+				fmt.Println("Installed specflow workflow skill to .claude/skills/specflow/SKILL.md")
 			}
 
 			return nil
@@ -59,6 +65,23 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&withClaude, "with-claude", false, "Also configure .claude/settings.json with specflow MCP server")
 
 	return cmd
+}
+
+// installSkill writes the specflow skill to .claude/skills/specflow/SKILL.md.
+// It loads the skill content from templates (supporting user overrides in .specflow/templates/skill.md).
+func installSkill(projectRoot, specflowRoot string) error {
+	content, err := templates.Load(specflowRoot, "skill")
+	if err != nil {
+		return fmt.Errorf("loading skill template: %w", err)
+	}
+
+	skillDir := filepath.Join(projectRoot, ".claude", "skills", "specflow")
+	if err := os.MkdirAll(skillDir, 0o750); err != nil {
+		return fmt.Errorf("creating skill directory: %w", err)
+	}
+
+	skillPath := filepath.Join(skillDir, "SKILL.md")
+	return os.WriteFile(skillPath, []byte(content), 0o600)
 }
 
 // setupClaudeSettings creates or updates .claude/settings.json with the specflow MCP server entry.

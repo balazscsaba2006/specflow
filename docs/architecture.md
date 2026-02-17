@@ -72,7 +72,7 @@ All non-exported packages live under `internal/`.
 | `internal/context` | Context builder -- the core value proposition. Assembles 6-layer context documents from project state for Claude Code consumption. Includes file reference resolution from plans and pattern exemplars. |
 | `internal/git` | Git operations via `os/exec` shell-outs. Provides `CurrentRef`, `Diff`, `Status`, and `FileChanges`. No git library dependency. |
 | `internal/mcp` | MCP stdio server using `mark3labs/mcp-go`. Registers all `sf_*` tools with behavioral descriptions. Splits handlers into read tools (`tools_read.go`) and write tools (`tools_write.go`). |
-| `internal/hardq` | Hard questions template engine. Returns deterministic, template-based questions per entity type (initiative, epic, story, PRD, tech spec). No AI involved. |
+| `internal/hardq` | Hard questions template engine. Returns deterministic, template-based questions per entity type (initiative, epic, story, PRD, tech spec, API spec, design spec, ADR, one-pager). No AI involved. |
 | `internal/ui` | Terminal output rendering. Tables via lipgloss, markdown rendering via glamour, progress bars, and colored status badges. |
 
 ### Entry Points
@@ -81,7 +81,7 @@ All non-exported packages live under `internal/`.
 |------|------|
 | `cmd/specflow/main.go` | Cobra root command setup. No business logic. |
 | `cmd/specflow/mcp.go` | Starts the MCP server on stdio. |
-| `cmd/specflow/*.go` | One file per CLI command group (initiative, epic, story, doc, decision, status, etc.). |
+| `cmd/specflow/*.go` | One file per CLI command group (initiative, epic, story, doc, decision, status, template, etc.). |
 
 ---
 
@@ -141,8 +141,13 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 |   +-- story_fast.md                        # Override story template (fast mode)
 |   +-- decision.md                          # Override decision template
 |   +-- doc_prd.md                           # Override PRD template
+|   +-- doc_tech-spec.md                     # Override tech spec template
+|   +-- doc_api-spec.md                      # Override API spec template
+|   +-- doc_design-spec.md                   # Override design spec template
 |   +-- doc_adr.md                           # Override ADR template
+|   +-- doc_one-pager.md                     # Override one-pager template
 |   +-- doc_generic.md                       # Override fallback doc template
+|   +-- skill.md                             # Override Claude Code skill
 +-- initiatives/
 |   +-- {slug}/
 |       +-- initiative.md                    # Frontmatter + description
@@ -280,7 +285,7 @@ Specs, PRDs, ADRs, and other project documentation. Can be scoped to an epic or 
 
 ### Decision
 
-Lightweight ADR. Records choices made during planning or implementation.
+Lightweight choice record. Records decisions made during planning or implementation. Lives in `.specflow/decisions/` (project-level, not scoped to an epic). For formal Architecture Decision Records with epic scope, open questions, and document status tracking, use a Document with `type: adr` instead.
 
 | Field | Type | Description |
 |-------|------|-------------|

@@ -47,6 +47,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSearchCmd())
 	cmd.AddCommand(newImportCmd())
 	cmd.AddCommand(newModeCmd())
+	cmd.AddCommand(newTemplateCmd())
 	cmd.AddCommand(newMCPCmd())
 
 	return cmd

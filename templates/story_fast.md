@@ -7,4 +7,6 @@ acceptance: []
 ---
 # Story Title
 
-Description of this story...
+## Why
+
+What is the business or user context for this work?

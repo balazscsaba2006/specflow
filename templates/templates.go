@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -34,6 +35,47 @@ func Load(specflowRoot, name string) (string, error) {
 		return "", fmt.Errorf("template %q not found", name)
 	}
 	return string(data), nil
+}
+
+// LoadEmbedded returns the embedded default template content, ignoring any user override.
+func LoadEmbedded(name string) (string, error) {
+	data, err := embedded.ReadFile(name + ".md")
+	if err != nil {
+		return "", fmt.Errorf("template %q not found", name)
+	}
+	return string(data), nil
+}
+
+// List returns all available template names (without the .md extension), sorted alphabetically.
+func List() []string {
+	entries, err := embedded.ReadDir(".")
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasSuffix(name, ".md") {
+			names = append(names, strings.TrimSuffix(name, ".md"))
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// OverridePath returns the filesystem path where a user override for the given
+// template name would be stored.
+func OverridePath(specflowRoot, name string) string {
+	return filepath.Join(specflowRoot, "templates", name+".md")
+}
+
+// HasOverride reports whether a user override exists for the given template name.
+func HasOverride(specflowRoot, name string) bool {
+	_, err := os.Stat(OverridePath(specflowRoot, name))
+	return err == nil
 }
 
 // LoadDoc returns the template for a document type. It maps known types (prd, adr)
