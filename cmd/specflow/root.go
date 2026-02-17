@@ -39,6 +39,12 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newStoryCmd())
 	cmd.AddCommand(newDocCmd())
 	cmd.AddCommand(newDecisionCmd())
+	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newQuestionsCmd())
+	cmd.AddCommand(newBlockedCmd())
+	cmd.AddCommand(newAssumptionsCmd())
+	cmd.AddCommand(newLogCmd())
+	cmd.AddCommand(newSearchCmd())
 
 	return cmd
 }
