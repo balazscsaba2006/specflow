@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/balazscsaba2006/specflow/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -47,7 +46,7 @@ func newConfigSetCmd() *cobra.Command {
 			if err := appConfig.Set(args[0], args[1]); err != nil {
 				return err
 			}
-			if err := config.Save(appStore.ConfigFile(), appConfig); err != nil {
+			if err := saveConfig(); err != nil {
 				return fmt.Errorf("saving config: %w", err)
 			}
 			fmt.Printf("%s = %s\n", args[0], args[1])

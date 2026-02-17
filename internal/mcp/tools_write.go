@@ -516,8 +516,11 @@ func (s *Server) handleExecutionComplete(_ context.Context, _ *mcp.CallToolReque
 		FilesChanged: len(exec.FilesChanged),
 	})
 
-	return textResult(fmt.Sprintf("Completed execution `%s` for story `%s` (%d files changed)",
-		exec.ID, exec.Story, len(exec.FilesChanged))), nil, nil
+	msg := fmt.Sprintf("Completed execution `%s` for story `%s` (%d files changed)", exec.ID, exec.Story, len(exec.FilesChanged))
+	if s.cfg.Mode != "fast" {
+		msg += "\n\nPlease run verification and save results with `sf_verify_save`."
+	}
+	return textResult(msg), nil, nil
 }
 
 func (s *Server) handleVerifySave(_ context.Context, _ *mcp.CallToolRequest, input verifySaveInput) (*mcp.CallToolResult, any, error) {

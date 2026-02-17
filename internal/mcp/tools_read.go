@@ -927,6 +927,10 @@ func (s *Server) handleHardQuestions(_ context.Context, _ *mcp.CallToolRequest, 
 		return errResult("entity is required"), nil, nil
 	}
 
+	if s.cfg.Mode == "fast" {
+		return textResult("Hard questions suppressed in fast mode. Switch to careful mode to enable."), nil, nil
+	}
+
 	entityType := s.detectEntityType(input.Entity)
 	if entityType == "" {
 		return errResultf("entity %q not found", input.Entity), nil, nil

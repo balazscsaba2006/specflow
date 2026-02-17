@@ -8,91 +8,9 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/balazscsaba2006/specflow/internal/ui"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
-
-// docTemplates maps doc types to their editor templates.
-var docTemplates = map[string]string{
-	models.DocTypePRD: `---
-title: "PRD: "
-type: prd
-status: draft
-epic: ""
-open_questions: []
----
-# PRD:
-
-## Problem
-
-What problem are we solving?
-
-## Users
-
-Who is affected?
-
-## Goals
-
-What does success look like?
-
-## Scope
-
-What is in scope? What is explicitly out of scope?
-
-## Requirements
-
-### Functional Requirements
-
-### Non-Functional Requirements
-
-## Risks
-
-## What If
-
-## Open Questions
-`,
-	models.DocTypeADR: `---
-title: "ADR: "
-type: adr
-status: draft
-epic: ""
-open_questions: []
----
-# ADR:
-
-## Context
-
-What is the issue that we're seeing that is motivating this decision?
-
-## Decision
-
-What is the change that we're proposing and/or doing?
-
-## Consequences
-
-What becomes easier or more difficult to do because of this change?
-`,
-}
-
-const docGenericTemplate = `---
-title: ""
-type: %s
-status: draft
-epic: ""
-open_questions: []
----
-# Title
-
-## Overview
-
-## Details
-`
-
-func docTemplate(docType string) string {
-	if tmpl, ok := docTemplates[docType]; ok {
-		return tmpl
-	}
-	return fmt.Sprintf(docGenericTemplate, docType)
-}
 
 func newDocCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -131,7 +49,10 @@ func newDocNewCmd() *cobra.Command {
 
 			epicSlug, _ := cmd.Flags().GetString("epic")
 
-			tmpl := docTemplate(docType)
+			tmpl, err := templates.LoadDoc(appStore.Root(), docType)
+			if err != nil {
+				return fmt.Errorf("loading template: %w", err)
+			}
 			if epicSlug != "" {
 				tmpl = strings.Replace(tmpl, `epic: ""`, fmt.Sprintf("epic: %q", epicSlug), 1)
 			}

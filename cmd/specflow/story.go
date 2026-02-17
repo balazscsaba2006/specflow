@@ -8,25 +8,9 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/balazscsaba2006/specflow/internal/ui"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
-
-const storyTemplate = `---
-title: ""
-status: draft
-priority: medium
-epic: ""
-blocked_by: []
-labels: []
-acceptance: []
-doc_refs: []
-open_questions: []
-assumptions: []
----
-# Story Title
-
-Description of this story...
-`
 
 func newStoryCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -59,7 +43,14 @@ func newStoryNewCmd() *cobra.Command {
 
 			epicSlug, _ := cmd.Flags().GetString("epic")
 
-			tmpl := storyTemplate
+			tmplName := "story"
+			if appConfig.Mode == "fast" {
+				tmplName = "story_fast"
+			}
+			tmpl, err := templates.Load(appStore.Root(), tmplName)
+			if err != nil {
+				return fmt.Errorf("loading template: %w", err)
+			}
 			if epicSlug != "" {
 				tmpl = strings.Replace(tmpl, `epic: ""`, fmt.Sprintf("epic: %q", epicSlug), 1)
 			}

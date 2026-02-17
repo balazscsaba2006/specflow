@@ -6,28 +6,9 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/balazscsaba2006/specflow/internal/ui"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
-
-const decisionTemplate = `---
-title: ""
-status: accepted
-context_refs: []
----
-# Decision Title
-
-## Context
-
-What is the issue that we're seeing that is motivating this decision?
-
-## Decision
-
-What is the change that we're proposing and/or doing?
-
-## Consequences
-
-What becomes easier or more difficult to do because of this change?
-`
 
 func newDecisionCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -55,7 +36,12 @@ func newDecisionNewCmd() *cobra.Command {
 				return err
 			}
 
-			edited, err := openInEditor(decisionTemplate)
+			tmpl, err := templates.Load(appStore.Root(), "decision")
+			if err != nil {
+				return fmt.Errorf("loading template: %w", err)
+			}
+
+			edited, err := openInEditor(tmpl)
 			if err != nil {
 				return fmt.Errorf("editing decision: %w", err)
 			}

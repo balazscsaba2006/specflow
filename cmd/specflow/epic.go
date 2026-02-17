@@ -8,21 +8,9 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/balazscsaba2006/specflow/internal/ui"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
-
-const epicTemplate = `---
-title: ""
-status: draft
-initiative: ""
-phases: []
-open_questions: []
-decisions: []
----
-# Epic Title
-
-Description of this epic...
-`
 
 func newEpicCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -55,7 +43,10 @@ func newEpicNewCmd() *cobra.Command {
 
 			initiative, _ := cmd.Flags().GetString("initiative")
 
-			tmpl := epicTemplate
+			tmpl, err := templates.Load(appStore.Root(), "epic")
+			if err != nil {
+				return fmt.Errorf("loading template: %w", err)
+			}
 			if initiative != "" {
 				tmpl = strings.Replace(tmpl, `initiative: ""`, fmt.Sprintf("initiative: %q", initiative), 1)
 			}

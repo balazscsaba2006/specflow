@@ -45,6 +45,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newAssumptionsCmd())
 	cmd.AddCommand(newLogCmd())
 	cmd.AddCommand(newSearchCmd())
+	cmd.AddCommand(newModeCmd())
 	cmd.AddCommand(newMCPCmd())
 
 	return cmd
@@ -58,6 +59,10 @@ func newVersionCmd() *cobra.Command {
 			fmt.Printf("specflow %s (%s) built %s\n", version, commit, date)
 		},
 	}
+}
+
+func saveConfig() error {
+	return config.Save(appStore.ConfigFile(), appConfig)
 }
 
 func initStoreAndConfig() error {

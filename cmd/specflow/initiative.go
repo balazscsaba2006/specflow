@@ -8,20 +8,9 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/balazscsaba2006/specflow/internal/ui"
+	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
-
-const initiativeTemplate = `---
-title: ""
-status: active
-goal: ""
-success_criteria: []
-open_questions: []
----
-# Initiative Title
-
-Description of this initiative...
-`
 
 func newInitiativeCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -52,7 +41,12 @@ func newInitiativeNewCmd() *cobra.Command {
 				return err
 			}
 
-			edited, err := openInEditor(initiativeTemplate)
+			tmpl, err := templates.Load(appStore.Root(), "initiative")
+			if err != nil {
+				return fmt.Errorf("loading template: %w", err)
+			}
+
+			edited, err := openInEditor(tmpl)
 			if err != nil {
 				return fmt.Errorf("editing initiative: %w", err)
 			}
