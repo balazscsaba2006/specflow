@@ -67,6 +67,10 @@ type reviewPromptInput struct {
 	Epic string `json:"epic,omitempty" jsonschema:"description=parent epic slug for epic-scoped docs"`
 }
 
+type epicRequiredInput struct {
+	Epic string `json:"epic" jsonschema:"description=epic slug"`
+}
+
 // registerReadTools registers all read-only MCP tools on the server.
 func (s *Server) registerReadTools() {
 	mcp.AddTool[statusInput, any](s.mcpSrv, &mcp.Tool{
@@ -158,6 +162,16 @@ func (s *Server) registerReadTools() {
 		Name:        "sf_review_prompt",
 		Description: "Assembles a coaching/review prompt for a document. Returns a structured prompt with the document content embedded, tailored to the document type (PRD, tech-spec, etc.).",
 	}, s.handleReviewPrompt)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_scope_check",
+		Description: "Compares current stories against the PRD's scope definition. Flags stories that aren't traceable to PRD user stories or are explicitly out-of-scope.",
+	}, s.handleScopeCheck)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_diff_check",
+		Description: "Detects drift between specs and their stories. Checks if documents were updated more recently than stories that reference them, indicating potential drift.",
+	}, s.handleDiffCheck)
 }
 
 // --- Handlers ---
@@ -982,4 +996,224 @@ func (s *Server) detectEntityType(slug string) hardq.EntityType {
 		return hardq.EntityType(doc.Type)
 	}
 	return ""
+}
+
+func (s *Server) handleScopeCheck(_ context.Context, _ *mcp.CallToolRequest, input epicRequiredInput) (*mcp.CallToolResult, any, error) {
+	if input.Epic == "" {
+		return errResult("epic is required"), nil, nil
+	}
+
+	// Find the PRD for this epic.
+	prd, err := s.findPRD(input.Epic)
+	if err != nil {
+		return errResultf("no PRD found for epic %q: %v", input.Epic, err), nil, nil
+	}
+
+	stories, err := s.store.ListStories(input.Epic)
+	if err != nil {
+		return errResultf("listing stories: %v", err), nil, nil
+	}
+
+	// Extract scope sections from PRD body.
+	inScope, outScope, userStories := parseScopeSections(prd.Body)
+
+	untraced := findUntracedStories(stories, userStories, inScope)
+	outOfScope := findOutOfScopeStories(stories, outScope)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Scope Check for epic `%s`\n\n", input.Epic)
+	fmt.Fprintf(&b, "**PRD:** %s (`%s`)\n\n", prd.Title, prd.Slug)
+
+	if len(untraced) == 0 && len(outOfScope) == 0 {
+		b.WriteString("All stories are traceable to the PRD scope. No issues found.\n")
+		return textResult(b.String()), nil, nil
+	}
+
+	if len(untraced) > 0 {
+		b.WriteString("### Stories not traceable to PRD\n\n")
+		b.WriteString("These stories couldn't be matched to PRD user stories or in-scope items:\n\n")
+		for _, st := range untraced {
+			fmt.Fprintf(&b, "- **%s** — %s [%s]\n", st.Slug, st.Title, st.Status)
+		}
+		b.WriteString("\n")
+	}
+
+	if len(outOfScope) > 0 {
+		b.WriteString("### Stories matching out-of-scope\n\n")
+		b.WriteString("These stories appear to match items explicitly marked as out-of-scope:\n\n")
+		for _, st := range outOfScope {
+			fmt.Fprintf(&b, "- **%s** — %s [%s]\n", st.Slug, st.Title, st.Status)
+		}
+		b.WriteString("\n")
+	}
+
+	return textResult(b.String()), nil, nil
+}
+
+// findUntracedStories returns stories whose titles can't be matched to PRD user stories or in-scope text.
+func findUntracedStories(stories []*models.Story, userStories []string, inScope string) []*models.Story {
+	inScopeLower := strings.ToLower(inScope)
+	var untraced []*models.Story
+	for _, st := range stories {
+		titleLower := strings.ToLower(st.Title)
+		if storyMatchesScope(titleLower, userStories, inScopeLower) {
+			continue
+		}
+		untraced = append(untraced, st)
+	}
+	return untraced
+}
+
+func storyMatchesScope(titleLower string, userStories []string, inScopeLower string) bool {
+	for _, us := range userStories {
+		usLower := strings.ToLower(us)
+		if strings.Contains(usLower, titleLower) || strings.Contains(titleLower, usLower) {
+			return true
+		}
+	}
+	return strings.Contains(inScopeLower, titleLower)
+}
+
+// findOutOfScopeStories returns stories whose titles match the out-of-scope text.
+func findOutOfScopeStories(stories []*models.Story, outScope string) []*models.Story {
+	if outScope == "" {
+		return nil
+	}
+	outLower := strings.ToLower(outScope)
+	var result []*models.Story
+	for _, st := range stories {
+		if strings.Contains(outLower, strings.ToLower(st.Title)) {
+			result = append(result, st)
+		}
+	}
+	return result
+}
+
+// findPRD looks for a PRD document under the given epic, then project-level.
+func (s *Server) findPRD(epicSlug string) (*models.Document, error) {
+	docs, err := s.store.ListDocs(epicSlug)
+	if err == nil {
+		for _, d := range docs {
+			if d.Type == models.DocTypePRD {
+				return d, nil
+			}
+		}
+	}
+	// Try project-level docs.
+	docs, err = s.store.ListDocs("")
+	if err != nil {
+		return nil, fmt.Errorf("listing project docs: %w", err)
+	}
+	for _, d := range docs {
+		if d.Type == models.DocTypePRD {
+			return d, nil
+		}
+	}
+	return nil, fmt.Errorf("no PRD document found")
+}
+
+// parseScopeSections extracts In Scope, Out of Scope, and User Stories sections from PRD markdown.
+func parseScopeSections(body string) (inScope, outScope string, userStories []string) {
+	lines := strings.Split(body, "\n")
+	var currentSection string
+	var sectionLines []string
+
+	flushSection := func() {
+		content := strings.TrimSpace(strings.Join(sectionLines, "\n"))
+		switch {
+		case strings.Contains(strings.ToLower(currentSection), "in scope") && !strings.Contains(strings.ToLower(currentSection), "out"):
+			inScope = content
+		case strings.Contains(strings.ToLower(currentSection), "out of scope") || strings.Contains(strings.ToLower(currentSection), "out-of-scope"):
+			outScope = content
+		case strings.Contains(strings.ToLower(currentSection), "user stor"):
+			for _, line := range sectionLines {
+				trimmed := strings.TrimSpace(line)
+				trimmed = strings.TrimLeft(trimmed, "-*• ")
+				if trimmed != "" {
+					userStories = append(userStories, trimmed)
+				}
+			}
+		}
+		sectionLines = nil
+	}
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "#") {
+			flushSection()
+			currentSection = line
+			continue
+		}
+		sectionLines = append(sectionLines, line)
+	}
+	flushSection()
+
+	return inScope, outScope, userStories
+}
+
+func (s *Server) handleDiffCheck(_ context.Context, _ *mcp.CallToolRequest, input epicRequiredInput) (*mcp.CallToolResult, any, error) {
+	if input.Epic == "" {
+		return errResult("epic is required"), nil, nil
+	}
+
+	stories, err := s.store.ListStories(input.Epic)
+	if err != nil {
+		return errResultf("listing stories: %v", err), nil, nil
+	}
+
+	// Load all docs for the epic + project-level.
+	docMap := make(map[string]*models.Document)
+	if epicDocs, listErr := s.store.ListDocs(input.Epic); listErr == nil {
+		for _, d := range epicDocs {
+			docMap[d.Slug] = d
+		}
+	}
+	if projDocs, listErr := s.store.ListDocs(""); listErr == nil {
+		for _, d := range projDocs {
+			docMap[d.Slug] = d
+		}
+	}
+
+	type driftItem struct {
+		story   *models.Story
+		doc     *models.Document
+		storyTS string
+		docTS   string
+	}
+	var drifted []driftItem
+
+	for _, st := range stories {
+		for _, ref := range st.DocRefs {
+			doc, exists := docMap[ref]
+			if !exists {
+				continue
+			}
+			if doc.Updated.After(st.Updated) {
+				drifted = append(drifted, driftItem{
+					story:   st,
+					doc:     doc,
+					storyTS: st.Updated.Format("2006-01-02 15:04"),
+					docTS:   doc.Updated.Format("2006-01-02 15:04"),
+				})
+			}
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Drift Check for epic `%s`\n\n", input.Epic)
+
+	if len(drifted) == 0 {
+		b.WriteString("No drift detected. All stories are up-to-date with their referenced documents.\n")
+		return textResult(b.String()), nil, nil
+	}
+
+	b.WriteString("The following stories reference documents that were updated after the story:\n\n")
+	b.WriteString("| Story | Doc | Story Updated | Doc Updated |\n")
+	b.WriteString("|-------|-----|---------------|-------------|\n")
+	for _, d := range drifted {
+		fmt.Fprintf(&b, "| %s | %s (%s) | %s | %s |\n",
+			d.story.Slug, d.doc.Slug, d.doc.Type, d.storyTS, d.docTS)
+	}
+	fmt.Fprintf(&b, "\n_%d potentially drifted stories_\n", len(drifted))
+
+	return textResult(b.String()), nil, nil
 }
