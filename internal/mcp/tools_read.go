@@ -18,57 +18,57 @@ var priorityRank = map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 
 // --- Input structs ---
 
 type statusInput struct {
-	Scope string `json:"scope" jsonschema:"description=Optional scope filter (epic slug or 'all')"`
+	Scope string `json:"scope,omitempty" jsonschema:"optional scope filter (epic slug or 'all')"`
 }
 
 type slugInput struct {
-	Slug string `json:"slug" jsonschema:"required,description=The slug identifier"`
+	Slug string `json:"slug" jsonschema:"the slug identifier"`
 }
 
 type storyNextInput struct {
-	Epic string `json:"epic" jsonschema:"description=Optional epic slug to filter by"`
+	Epic string `json:"epic,omitempty" jsonschema:"optional epic slug to filter by"`
 }
 
 type storyLsInput struct {
-	Epic    string `json:"epic" jsonschema:"description=Filter by epic slug"`
-	Status  string `json:"status" jsonschema:"description=Filter by status"`
-	Label   string `json:"label" jsonschema:"description=Filter by label"`
-	Blocked bool   `json:"blocked" jsonschema:"description=Show only blocked stories"`
+	Epic    string `json:"epic,omitempty" jsonschema:"filter by epic slug"`
+	Status  string `json:"status,omitempty" jsonschema:"filter by status"`
+	Label   string `json:"label,omitempty" jsonschema:"filter by label"`
+	Blocked bool   `json:"blocked,omitempty" jsonschema:"show only blocked stories"`
 }
 
 type docReadInput struct {
-	Slug string `json:"slug" jsonschema:"required,description=Document slug"`
-	Epic string `json:"epic" jsonschema:"description=Optional epic slug"`
+	Slug string `json:"slug" jsonschema:"document slug"`
+	Epic string `json:"epic,omitempty" jsonschema:"optional epic slug"`
 }
 
 type storyRefInput struct {
-	Story string `json:"story" jsonschema:"required,description=Story slug"`
+	Story string `json:"story" jsonschema:"story slug"`
 }
 
 type epicOptInput struct {
-	Epic string `json:"epic" jsonschema:"description=Optional epic slug to filter by"`
+	Epic string `json:"epic,omitempty" jsonschema:"optional epic slug to filter by"`
 }
 
 type logInput struct {
-	Last int `json:"last" jsonschema:"description=Number of recent entries to return (default 20)"`
+	Last int `json:"last,omitempty" jsonschema:"number of recent entries to return (default 20)"`
 }
 
 type diffInput struct {
-	Story string `json:"story,omitempty" jsonschema:"description=story slug (uses latest execution baseline)"`
-	Refs  string `json:"refs,omitempty" jsonschema:"description=explicit git ref range e.g. abc123..HEAD"`
+	Story string `json:"story,omitempty" jsonschema:"story slug (uses latest execution baseline)"`
+	Refs  string `json:"refs,omitempty" jsonschema:"explicit git ref range e.g. abc123..HEAD"`
 }
 
 type hardQuestionsInput struct {
-	Entity string `json:"entity" jsonschema:"description=any entity slug (initiative, epic, story, or doc)"`
+	Entity string `json:"entity" jsonschema:"any entity slug (initiative, epic, story, or doc)"`
 }
 
 type reviewPromptInput struct {
-	Doc  string `json:"doc" jsonschema:"description=document slug"`
-	Epic string `json:"epic,omitempty" jsonschema:"description=parent epic slug for epic-scoped docs"`
+	Doc  string `json:"doc" jsonschema:"document slug"`
+	Epic string `json:"epic,omitempty" jsonschema:"parent epic slug for epic-scoped docs"`
 }
 
 type epicRequiredInput struct {
-	Epic string `json:"epic" jsonschema:"description=epic slug"`
+	Epic string `json:"epic" jsonschema:"epic slug"`
 }
 
 // registerReadTools registers all read-only MCP tools on the server.
