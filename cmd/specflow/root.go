@@ -23,7 +23,7 @@ func newRootCmd() *cobra.Command {
 		Long:  "specflow — a structured memory and context layer for Claude Code.",
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// Skip store init for commands that don't need it.
-			if cmd.Name() == "init" || cmd.Name() == "version" {
+			if cmd.Name() == "init" || cmd.Name() == "version" || cmd.Name() == "update" {
 				return nil
 			}
 			return initStoreAndConfig()
@@ -47,6 +47,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSearchCmd())
 	cmd.AddCommand(newImportCmd())
 	cmd.AddCommand(newModeCmd())
+	cmd.AddCommand(newUpdateCmd())
 	cmd.AddCommand(newTemplateCmd())
 	cmd.AddCommand(newMCPCmd())
 
