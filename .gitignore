@@ -1,0 +1,19 @@
+# IDE
+.idea/
+
+# Go binary
+specflow
+
+# Build output
+dist/
+bin/
+
+# OS
+.DS_Store
+
+# Test
+coverage.out
+coverage.html
+
+# Dependency
+vendor/

@@ -1,0 +1,110 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.24"
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  # Start from the standard set (errcheck, govet, ineffassign, staticcheck, unused)
+  # and layer additional linters on top.
+  default: standard
+  enable:
+    - gocritic
+    - gocyclo
+    - gosec
+    - misspell
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - whyNoLint # handled by nolintlint if ever added
+        - hugeParam  # too noisy for a CLI tool passing structs by value
+
+    gocyclo:
+      min-complexity: 15
+
+    gosec:
+      excludes:
+        - G104 # duplicates errcheck
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # premature optimization for a CLI tool
+
+    misspell:
+      locale: US
+
+    revive:
+      enable-all-rules: false
+      severity: warning
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: if-return
+        - name: increment-decrement
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: var-declaration
+        - name: errorf
+        # Disable noisy rules
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # package comments — too strict for personal tooling
+        - -ST1016 # method receiver names — revive handles this
+
+    unparam:
+      check-exported: false
+
+  exclusions:
+    generated: lax
+    warn-unused: true
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Test files: relax strict linters that add friction without value in tests.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - gocyclo
+          - unparam
+          - prealloc
+      # Allow dot-imports for test assertion libraries (e.g. testify).
+      - path: _test\.go
+        text: "dot-imports"
+        linters:
+          - revive
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+  fix: false

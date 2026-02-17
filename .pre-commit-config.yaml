@@ -1,0 +1,72 @@
+fail_fast: true
+
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Go formatting
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -l -w
+        language: system
+        types: [go]
+        stages: [pre-commit]
+
+      - id: goimports
+        name: goimports
+        entry: goimports -l -w
+        language: system
+        types: [go]
+        stages: [pre-commit]
+
+  # Go static analysis
+  - repo: local
+    hooks:
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run --new-from-rev=HEAD
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # Go tests
+  - repo: local
+    hooks:
+      - id: go-test
+        name: go test
+        entry: go test ./... -count=1
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # Go build
+  - repo: local
+    hooks:
+      - id: go-build
+        name: go build
+        entry: go build ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-commit]
