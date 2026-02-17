@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -49,6 +50,11 @@ type epicOptInput struct {
 
 type logInput struct {
 	Last int `json:"last" jsonschema:"description=Number of recent entries to return (default 20)"`
+}
+
+type diffInput struct {
+	Story string `json:"story,omitempty" jsonschema:"description=story slug (uses latest execution baseline)"`
+	Refs  string `json:"refs,omitempty" jsonschema:"description=explicit git ref range e.g. abc123..HEAD"`
 }
 
 // registerReadTools registers all read-only MCP tools on the server.
@@ -127,6 +133,11 @@ func (s *Server) registerReadTools() {
 		Name:        "sf_assumptions",
 		Description: "List all assumptions across stories, grouped by epic.",
 	}, s.handleAssumptions)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_diff",
+		Description: "Returns git diff for a story's execution. Defaults to diff between execution start and current HEAD. Provide either a story slug or explicit ref range.",
+	}, s.handleDiff)
 }
 
 // --- Handlers ---
@@ -839,3 +850,40 @@ func (s *Server) handleAssumptions(_ context.Context, _ *mcp.CallToolRequest, in
 	return textResult(b.String()), nil, nil
 }
 
+func (s *Server) handleDiff(_ context.Context, _ *mcp.CallToolRequest, input diffInput) (*mcp.CallToolResult, any, error) {
+	var from, to string
+
+	switch {
+	case input.Refs != "":
+		// Explicit ref range provided.
+		parts := strings.SplitN(input.Refs, "..", 2)
+		if len(parts) != 2 {
+			return errResult("refs must be in the format 'from..to'"), nil, nil
+		}
+		from, to = parts[0], parts[1]
+	case input.Story != "":
+		// Look up the latest execution's git baseline.
+		latest, err := s.store.LatestExecution(input.Story)
+		if err != nil {
+			return errResultf("finding execution for story %q: %v", input.Story, err), nil, nil
+		}
+		if latest.GitRefBefore == "" {
+			return errResult("execution has no git baseline recorded"), nil, nil
+		}
+		from = latest.GitRefBefore
+		to = "HEAD"
+	default:
+		return errResult("either story or refs is required"), nil, nil
+	}
+
+	diff, err := git.Diff(from, to)
+	if err != nil {
+		return errResultf("getting diff: %v", err), nil, nil
+	}
+
+	if diff == "" {
+		return textResult(fmt.Sprintf("No changes between %s and %s.", from, to)), nil, nil
+	}
+
+	return textResult(fmt.Sprintf("```diff\n%s```", diff)), nil, nil
+}

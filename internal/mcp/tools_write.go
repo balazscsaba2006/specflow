@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -48,12 +49,12 @@ func (s *Server) registerWriteTools() {
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_execution_start",
-		Description: "Start a new execution for a story. Creates an execution record and sets the story status to in_progress if not already.",
+		Description: "Start a new execution for a story. Captures current git ref as baseline, creates an execution record, and sets story status to in_progress.",
 	}, s.handleExecutionStart)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_execution_complete",
-		Description: "Mark an execution as completed. Git integration (diff capture) will be added in Phase 6.",
+		Description: "Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them.",
 	}, s.handleExecutionComplete)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -428,9 +429,11 @@ func (s *Server) handleExecutionStart(_ context.Context, _ *mcp.CallToolRequest,
 		return errResult("story is required"), nil, nil
 	}
 
+	gitRef, _ := git.CurrentRef() // best-effort; non-fatal if not in a git repo
+
 	e := &models.Execution{
 		Story:        input.Story,
-		GitRefBefore: "", // Git integration comes in Phase 6.
+		GitRefBefore: gitRef,
 	}
 
 	if err := s.store.CreateExecution(e); err != nil {
@@ -487,18 +490,34 @@ func (s *Server) handleExecutionComplete(_ context.Context, _ *mcp.CallToolReque
 	exec.Status = models.ExecutionStatusCompleted
 	exec.CompletedAt = &now
 
+	// Capture git state at completion.
+	if gitRef, gitErr := git.CurrentRef(); gitErr == nil {
+		exec.GitRefAfter = gitRef
+	}
+	if exec.GitRefBefore != "" {
+		if changes, gitErr := git.FileChanges(exec.GitRefBefore, ""); gitErr == nil {
+			for _, c := range changes {
+				exec.FilesChanged = append(exec.FilesChanged, models.FileChange{
+					Path:   c.Path,
+					Action: c.Action,
+				})
+			}
+		}
+	}
+
 	if err := s.store.SaveExecution(exec); err != nil {
 		return errResultf("saving execution: %v", err), nil, nil
 	}
 
 	_ = s.store.AppendLog(models.LogEntry{
-		Type:   models.LogExecutionCompleted,
-		Entity: exec.ID,
-		Story:  exec.Story,
+		Type:         models.LogExecutionCompleted,
+		Entity:       exec.ID,
+		Story:        exec.Story,
+		FilesChanged: len(exec.FilesChanged),
 	})
 
-	return textResult(fmt.Sprintf("Completed execution `%s` for story `%s`",
-		exec.ID, exec.Story)), nil, nil
+	return textResult(fmt.Sprintf("Completed execution `%s` for story `%s` (%d files changed)",
+		exec.ID, exec.Story, len(exec.FilesChanged))), nil, nil
 }
 
 func (s *Server) handleVerifySave(_ context.Context, _ *mcp.CallToolRequest, input verifySaveInput) (*mcp.CallToolResult, any, error) {
