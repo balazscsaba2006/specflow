@@ -265,6 +265,30 @@ Detect drift between specs and stories. Checks if documents were updated more re
 
 ---
 
+### sf_scope_drift
+
+Compare planned files (from implementation plan) against actual files changed in the latest execution. Detects drift between what was planned and what was implemented.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `story` | string | yes | Story slug |
+
+**Response:** Comparison of planned vs actual files with three sections: matched files, unexpected files (changed but not in plan), and missing files (in plan but not changed).
+
+---
+
+### sf_unstuck
+
+Diagnostic tool that assembles comprehensive story state for debugging stuck implementations. Gathers story details, plan, execution state, current diff, handover notes, open questions, assumptions, and recent log entries into a single diagnostic prompt.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `story` | string | yes | Story slug |
+
+**Response:** Multi-section diagnostic document with story state, plan excerpt, execution history, current diff (truncated), open items, and suggested debugging steps.
+
+---
+
 ## Write Tools
 
 ### sf_initiative_create
@@ -296,6 +320,8 @@ Create a new epic.
 | `phases` | []Phase | no | Phases with label and story slugs |
 | `body` | string | no | Markdown body content |
 | `open_questions` | []string | no | Initial open questions |
+| `fidelity` | string | no | Quality target: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
+| `non_goals` | []string | no | Explicit non-goals to prevent scope creep |
 
 **Phase structure:** `{"label": "Phase 1", "stories": ["story-slug-1", "story-slug-2"]}`
 
@@ -319,6 +345,8 @@ Create a new story.
 | `doc_refs` | []string | no | Document slugs referenced by this story |
 | `open_questions` | []string | no | Initial open questions |
 | `body` | string | no | Markdown body content |
+| `fidelity` | string | no | Quality target (inherits from epic if not set): `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
+| `non_goals` | []string | no | Explicit non-goals to prevent scope creep |
 
 **Response:** Confirmation with title, slug, ID, priority, and status.
 
@@ -416,6 +444,19 @@ Mark an execution as completed. Captures current git ref, computes file changes 
 In careful mode, the response includes a prompt to run verification.
 
 **Response:** Confirmation with execution ID, story slug, and files changed count.
+
+---
+
+### sf_execution_pause
+
+Pause an in-progress execution with handover notes. Sets execution status to `paused`, writes handover notes to the execution directory, and returns story to `planned` status. Use this when stopping work mid-story to preserve context for the next session.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `story` | string | yes | Story slug |
+| `handover_notes` | string | yes | Markdown notes describing current state, what's done, what's remaining, and any blockers |
+
+**Response:** Confirmation with execution ID and story slug.
 
 ---
 

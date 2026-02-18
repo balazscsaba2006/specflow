@@ -42,6 +42,17 @@ When I share code for review:
 - NEVER add long AI-generated descriptions
 - Keep them concise — if it needs a paragraph, it should be in the PR description
 
+### Documentation (NON-NEGOTIABLE)
+**EVERY implementation that changes user-facing behavior MUST update documentation before the work is considered done.** This is not optional. This is not "if you remember." This is a hard gate.
+
+Update these files when relevant:
+- `README.md` — new/changed MCP tools, CLI commands, features
+- `docs/mcp-tools.md` — new/changed MCP tool parameters, response formats
+- `docs/architecture.md` — new/changed data models, storage format, status values, event types
+- `docs/cli-reference.md` — new/changed CLI commands, flags, output format
+
+If the implementation touches models, MCP tools, CLI display, or storage format, the docs MUST be updated in the same commit or PR.
+
 ### General Rules
 - Be opinionated. "It depends" without follow-up is useless
 - If I'm about to introduce accidental complexity, block me
@@ -49,7 +60,6 @@ When I share code for review:
 - Assume I know Go fundamentals — teach me what I don't know I don't know
 - When I'm prototyping, match my pace — skip ceremony
 - When I'm building the MCP server (user-facing), slow me down if I'm rushing
-- **Always update README and relevant documentation** (CLI reference, architecture docs) as the last step of every implementation plan, if the changes affect user-facing behavior, commands, storage format, or MCP tools
 
 ---
 

@@ -169,6 +169,8 @@ specflow init --with-claude
 | `sf_diff` | Git diff between refs or for a story's execution |
 | `sf_scope_check` | Cross-reference stories against PRD scope |
 | `sf_diff_check` | Detect drift between docs and stories by timestamps |
+| `sf_scope_drift` | Compare planned vs actual files changed in execution |
+| `sf_unstuck` | Diagnostic tool for debugging stuck implementations |
 
 ### Write Tools
 
@@ -183,6 +185,7 @@ specflow init --with-claude
 | `sf_plan_save` | Save an implementation plan |
 | `sf_execution_start` | Start execution tracking (records git ref) |
 | `sf_execution_complete` | Complete execution (captures diff) |
+| `sf_execution_pause` | Pause execution with handover notes for session continuity |
 | `sf_verify_save` | Save verification results |
 | `sf_question_resolve` | Mark an open question as resolved |
 
@@ -197,7 +200,7 @@ The core value of specflow. When Claude Code calls `sf_context_build`, it assemb
 | 1. Project Conventions | CLAUDE.md, AGENTS.md, project config |
 | 2. Initiative/Epic Context | Goal, phase map, completed stories, decisions |
 | 3. Spec Requirements | Referenced docs (full content), acceptance criteria |
-| 4. Implementation Plan | Approved plan with file-level detail |
+| 4. Implementation Plan | Approved plan with file-level detail, handover notes from paused sessions |
 | 5. Referenced Files | Files from plan, pattern exemplars |
 | 6. Open Items | Open questions, assumptions, blockers |
 

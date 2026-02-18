@@ -237,6 +237,8 @@ A shippable feature or capability. Contains phases that group stories.
 | `phases` | []Phase | Ordered phases, each with a label and story slug list |
 | `open_questions` | []string | Unresolved questions |
 | `decisions` | []string | Decision strings recorded inline |
+| `fidelity` | string | Quality target: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
+| `non_goals` | []string | Explicit non-goals to prevent scope creep |
 
 **Statuses**: `draft`, `active`, `completed`, `on_hold`, `archived`
 
@@ -258,6 +260,8 @@ The atomic work unit. The only entity that goes through execution and verificati
 | `doc_refs` | []string | Slugs of referenced docs |
 | `open_questions` | []string | Unresolved questions |
 | `assumptions` | []string | Assumptions discovered during execution |
+| `fidelity` | string | Quality target (inherits from epic context if not set) |
+| `non_goals` | []string | Explicit non-goals for this story |
 
 **Statuses**: `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`
 
@@ -339,8 +343,9 @@ Tracks a single execution attempt of a story. Stored as `meta.yaml` (pure YAML, 
 | `git_ref_before` | string | Commit SHA at start |
 | `git_ref_after` | string | Commit SHA at completion |
 | `files_changed` | []FileChange | List of changed files with action (added/modified) |
+| `handover_notes` | string | Markdown notes written when execution is paused (for session handover) |
 
-**Statuses**: `started`, `completed`, `failed`
+**Statuses**: `started`, `completed`, `paused`, `failed`
 
 ### Verification
 
@@ -379,7 +384,7 @@ Append-only activity log entry stored in `log.jsonl`. Uses JSON tags (not YAML) 
 | `result` | string | Verification result |
 | `critical` / `major` / `minor` | int | Finding severity counts |
 
-**Event types**: `story.status_changed`, `execution.started`, `execution.completed`, `verification.saved`, `doc.created`, `doc.updated`, `decision.recorded`, `initiative.created`, `epic.created`, `story.created`, `plan.saved`, `question.resolved`
+**Event types**: `story.status_changed`, `execution.started`, `execution.completed`, `execution.paused`, `verification.saved`, `doc.created`, `doc.updated`, `decision.recorded`, `initiative.created`, `epic.created`, `story.created`, `plan.saved`, `question.resolved`
 
 ---
 
@@ -394,7 +399,7 @@ The context builder (`internal/context/builder.go`) is the core value propositio
 | 1 | Project Conventions | `CLAUDE.md` from the consuming project, `AGENTS.md` if it exists, `.specflow/config.yaml` project-specific rules |
 | 2 | Initiative/Epic Context | Initiative goal + success criteria, epic description + phase map, completed stories (title + summary only), in-progress stories (title + what's happening), decisions made so far |
 | 3 | Spec Requirements | All docs referenced by the story (`doc_refs`) in full content, acceptance criteria extracted and highlighted |
-| 4 | Implementation Plan | Approved plan with file-level detail, or a "no plan yet" prompt if none exists |
+| 4 | Implementation Plan | Approved plan with file-level detail, handover notes from paused executions, or a "no plan yet" prompt if none exists |
 | 5 | Referenced Files | Files mentioned in the plan (current content), pattern exemplar files from config, files created by completed predecessor stories |
 | 6 | Open Items | Open questions that might affect implementation, assumptions from related stories, blockers (should be empty if story is ready to work) |
 
@@ -403,14 +408,15 @@ The context builder (`internal/context/builder.go`) is the core value propositio
 1. Load story, follow `epic` ref, follow `initiative` ref.
 2. Load all docs referenced by `story.doc_refs`.
 3. Load plan if it exists.
-4. Load completed sibling stories (title + summary only, not full content).
-5. Load decisions for the epic.
-6. Collect open questions from all layers (story, docs, epic, initiative).
-7. Collect assumptions from completed stories.
-8. Read `CLAUDE.md` and `AGENTS.md` from the project root.
-9. Read pattern exemplar files from config.
-10. Read files referenced in the plan.
-11. Render through `context.md.tmpl` template.
+4. If the latest execution for the story is paused, load handover notes.
+5. Load completed sibling stories (title + summary only, not full content).
+6. Load decisions for the epic.
+7. Collect open questions from all layers (story, docs, epic, initiative).
+8. Collect assumptions from completed stories.
+9. Read `CLAUDE.md` and `AGENTS.md` from the project root.
+10. Read pattern exemplar files from config.
+11. Read files referenced in the plan.
+12. Render through `context.md.tmpl` template.
 
 Files that do not yet exist are noted as "planned but not yet created."
 

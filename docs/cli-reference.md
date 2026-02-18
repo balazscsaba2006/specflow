@@ -239,7 +239,7 @@ List epics. Outputs a table with columns: SLUG, TITLE, STATUS, INITIATIVE.
 specflow epic show <slug>
 ```
 
-Show full details of an epic, including ID, slug, title, status, initiative, timestamps, phases with their stories, open questions, decisions, and body content.
+Show full details of an epic, including ID, slug, title, status, initiative, fidelity, timestamps, phases with their stories, non-goals, open questions, decisions, and body content.
 
 **Arguments:**
 
@@ -358,7 +358,7 @@ List stories. Outputs a table with columns: SLUG, TITLE, STATUS, PRIORITY, EPIC,
 specflow story show <slug> [flags]
 ```
 
-Show full details of a story, including ID, slug, title, status, priority, epic, timestamps, blocked-by list, labels, acceptance criteria, doc refs, open questions, assumptions, and body content.
+Show full details of a story, including ID, slug, title, status, priority, epic, fidelity, timestamps, blocked-by list, labels, acceptance criteria, doc refs, non-goals, open questions, assumptions, and body content.
 
 **Arguments:**
 
