@@ -94,19 +94,21 @@ This gate applies to ALL stories — epic-scoped and standalone. Skip only if th
 **CRITICAL: Every story MUST go through this lifecycle. Do NOT skip steps.**
 
 ```
-sf_execution_start → write code → run tests → sf_execution_complete → sf_verify_save → sf_story_update(done)
+sf_execution_start → write code → run tests → sf_execution_complete → sf_verify_save → sf_story_update(done) → commit
 ```
 
 1. **BEFORE writing any code:** Call `sf_execution_start`. This records the git baseline and auto-sets the story to `in_progress`. **Note the execution_id from the response** — you'll need it for completion.
 2. Implement according to the plan and acceptance criteria from context.
 3. Run tests and check acceptance criteria in the foreground.
-4. **AFTER verification:** Complete the story using the background pattern below.
+4. **AFTER verification passes:** Complete the lifecycle, then commit everything together (see below).
 
 **Never leave a story in `in_progress` or `verifying` at the end of a session.** Either complete the full cycle or explicitly note what's unfinished.
 
 ## Story Completion (Background)
 
 To reduce terminal noise, batch the post-implementation lifecycle calls into a **single background Task agent**. This keeps the bookkeeping out of the main conversation.
+
+Complete the specflow lifecycle **before committing**, so code changes and specflow metadata (execution, verification, story status) land in a single commit. This avoids a two-commit dance when `.specflow/` is tracked in git.
 
 **When verification passes:**
 
@@ -122,6 +124,8 @@ Complete specflow lifecycle for story "my-story":
 2. Call sf_verify_save with story="my-story", result="pass", summary="All criteria met", acceptance_check=[{"criteria":"...", "met":true}, ...]
 3. Call sf_story_update with slug="my-story", status="done"
 ```
+
+After the background task completes, commit all changes (code + `.specflow/` metadata) together.
 
 **When verification fails or is partial:**
 
