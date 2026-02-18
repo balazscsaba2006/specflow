@@ -102,6 +102,13 @@ Call this BEFORE starting to implement a story.`,
 	}, s.handleExecutionStart)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name: "sf_execution_pause",
+		Description: `Pause an in-progress execution with handover notes for multi-session work. Captures what was done, what remains, and any gotchas for the next session.
+
+Call this when ending a session mid-implementation. The handover notes will be surfaced in sf_context_build when work resumes.`,
+	}, s.handleExecutionPause)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name: "sf_execution_complete",
 		Description: `Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them. Provide story slug to avoid scanning all stories.
 
@@ -145,9 +152,11 @@ type epicCreateInput struct {
 	Slug          string         `json:"slug" jsonschema:"the URL-friendly identifier for the epic"`
 	Title         string         `json:"title" jsonschema:"human-readable title"`
 	Initiative    string         `json:"initiative,omitempty" jsonschema:"parent initiative slug"`
+	Fidelity      string         `json:"fidelity,omitempty" jsonschema:"target fidelity: prototype, personal-tool, alpha, beta, production"`
 	Phases        []models.Phase `json:"phases,omitempty" jsonschema:"ordered phases with story references"`
 	Body          string         `json:"body,omitempty" jsonschema:"markdown body content"`
 	OpenQuestions []string       `json:"open_questions,omitempty" jsonschema:"unresolved questions"`
+	NonGoals      []string       `json:"non_goals,omitempty" jsonschema:"explicit non-goals or out-of-scope items"`
 }
 
 type storyCreateInput struct {
@@ -155,11 +164,13 @@ type storyCreateInput struct {
 	Title         string   `json:"title" jsonschema:"human-readable title"`
 	Epic          string   `json:"epic,omitempty" jsonschema:"parent epic slug"`
 	Priority      string   `json:"priority,omitempty" jsonschema:"priority level: critical, high, medium, low"`
+	Fidelity      string   `json:"fidelity,omitempty" jsonschema:"target fidelity (for standalone stories without epic): prototype, personal-tool, alpha, beta, production"`
 	Acceptance    []string `json:"acceptance" jsonschema:"acceptance criteria"`
 	Labels        []string `json:"labels,omitempty" jsonschema:"classification labels"`
 	BlockedBy     []string `json:"blocked_by,omitempty" jsonschema:"slugs of blocking stories"`
 	DocRefs       []string `json:"doc_refs,omitempty" jsonschema:"referenced document slugs"`
 	OpenQuestions []string `json:"open_questions,omitempty" jsonschema:"unresolved questions"`
+	NonGoals      []string `json:"non_goals,omitempty" jsonschema:"explicit non-goals or out-of-scope items"`
 	Body          string   `json:"body,omitempty" jsonschema:"markdown body content"`
 }
 
@@ -199,6 +210,12 @@ type planSaveInput struct {
 
 type executionStartInput struct {
 	Story string `json:"story" jsonschema:"story slug to start execution for"`
+}
+
+type executionPauseInput struct {
+	ExecutionID   string `json:"execution_id" jsonschema:"the execution ID to pause"`
+	Story         string `json:"story,omitempty" jsonschema:"story slug (avoids O(N) scan if provided)"`
+	HandoverNotes string `json:"handover_notes" jsonschema:"markdown notes for the next session: what was done, what remains, blockers, gotchas"`
 }
 
 type executionCompleteInput struct {
@@ -273,8 +290,10 @@ func (s *Server) handleEpicCreate(_ context.Context, _ *mcp.CallToolRequest, inp
 		Title:         input.Title,
 		Status:        models.EpicStatusDraft,
 		Initiative:    input.Initiative,
+		Fidelity:      input.Fidelity,
 		Phases:        input.Phases,
 		OpenQuestions: input.OpenQuestions,
+		NonGoals:      input.NonGoals,
 		Body:          input.Body,
 	}
 
@@ -305,11 +324,13 @@ func (s *Server) handleStoryCreate(_ context.Context, _ *mcp.CallToolRequest, in
 		Title:         input.Title,
 		Epic:          input.Epic,
 		Priority:      priority,
+		Fidelity:      input.Fidelity,
 		Acceptance:    input.Acceptance,
 		Labels:        input.Labels,
 		BlockedBy:     input.BlockedBy,
 		DocRefs:       input.DocRefs,
 		OpenQuestions: input.OpenQuestions,
+		NonGoals:      input.NonGoals,
 		Body:          input.Body,
 	}
 
@@ -602,6 +623,76 @@ func (s *Server) handleExecutionComplete(_ context.Context, _ *mcp.CallToolReque
 		msg += "\n\nPlease run verification and save results with `sf_verify_save`."
 	}
 	return textResult(msg), nil, nil
+}
+
+func (s *Server) handleExecutionPause(_ context.Context, _ *mcp.CallToolRequest, input executionPauseInput) (*mcp.CallToolResult, any, error) {
+	if input.ExecutionID == "" || input.HandoverNotes == "" {
+		return errResult("execution_id and handover_notes are required"), nil, nil
+	}
+
+	var exec *models.Execution
+
+	if input.Story != "" {
+		e, loadErr := s.store.LoadExecution(input.Story, input.ExecutionID)
+		if loadErr != nil {
+			return errResultf("execution %q not found for story %q", input.ExecutionID, input.Story), nil, nil
+		}
+		exec = e
+	} else {
+		stories, err := s.store.ListAllStories()
+		if err != nil {
+			return errResultf("listing stories to find execution: %v", err), nil, nil
+		}
+		for _, st := range stories {
+			e, loadErr := s.store.LoadExecution(st.Slug, input.ExecutionID)
+			if loadErr == nil {
+				exec = e
+				break
+			}
+		}
+	}
+
+	if exec == nil {
+		return errResultf("execution %q not found", input.ExecutionID), nil, nil
+	}
+
+	if exec.Status != models.ExecutionStatusStarted {
+		return errResultf("execution %q is %s, can only pause started executions", input.ExecutionID, exec.Status), nil, nil
+	}
+
+	// Pause the execution.
+	exec.Status = models.ExecutionStatusPaused
+	exec.HandoverNotes = input.HandoverNotes
+	if err := s.store.SaveExecution(exec); err != nil {
+		return errResultf("saving execution: %v", err), nil, nil
+	}
+
+	// Write handover notes to file.
+	if err := s.store.SaveHandover(input.HandoverNotes, exec.Story, exec.ID); err != nil {
+		return errResultf("saving handover notes: %v", err), nil, nil
+	}
+
+	// Set story back to planned.
+	if st, stErr := s.findStory(exec.Story); stErr == nil && st.Status == models.StoryStatusInProgress {
+		st.Status = models.StoryStatusPlanned
+		_ = s.store.SaveStory(st)
+		_ = s.store.AppendLog(models.LogEntry{
+			Type:   models.LogStoryStatusChanged,
+			Entity: st.Slug,
+			Epic:   st.Epic,
+			From:   models.StoryStatusInProgress,
+			To:     models.StoryStatusPlanned,
+		})
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogExecutionPaused,
+		Entity: exec.ID,
+		Story:  exec.Story,
+	})
+
+	return textResult(fmt.Sprintf("Paused execution `%s` for story `%s`.\nHandover notes saved. They will appear in `sf_context_build` when work resumes.",
+		exec.ID, exec.Story)), nil, nil
 }
 
 func (s *Server) handleVerifySave(_ context.Context, _ *mcp.CallToolRequest, input verifySaveInput) (*mcp.CallToolResult, any, error) {

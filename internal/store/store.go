@@ -119,6 +119,10 @@ func (s *Store) ExecutionMetaFile(storySlug, execID string) string {
 	return filepath.Join(s.ExecutionDir(storySlug, execID), "meta.yaml")
 }
 
+func (s *Store) HandoverFile(storySlug, execID string) string {
+	return filepath.Join(s.ExecutionDir(storySlug, execID), "handover.md")
+}
+
 func (s *Store) LogFile() string {
 	return filepath.Join(s.root, "log.jsonl")
 }

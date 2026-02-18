@@ -29,6 +29,7 @@
 **Status:** active
 
 
+
 #### Phases
 
 - **Phase 1:** api-key-store jwt-middleware 
@@ -42,6 +43,7 @@
 ---
 
 ## Layer 3: Spec Requirements
+
 
 ### Acceptance Criteria
 - [ ] Validate JWT tokens on protected endpoints
@@ -60,6 +62,7 @@ We need authentication for the API.
 ---
 
 ## Layer 4: Implementation Plan
+
 
 **Status:** approved
 ## Steps

@@ -171,6 +171,9 @@ func newStoryShowCmd() *cobra.Command {
 			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(st.Status))
 			fmt.Printf("%s  %s\n", ui.Label("Priority:"), ui.PriorityBadge(st.Priority))
 			fmt.Printf("%s  %s\n", ui.Label("Epic:"), st.Epic)
+			if st.Fidelity != "" {
+				fmt.Printf("%s  %s\n", ui.Label("Fidelity:"), st.Fidelity)
+			}
 			fmt.Printf("%s  %s\n", ui.Label("Created:"), st.Created.Format("2006-01-02 15:04:05"))
 			fmt.Printf("%s  %s\n", ui.Label("Updated:"), st.Updated.Format("2006-01-02 15:04:05"))
 
@@ -196,6 +199,12 @@ func newStoryShowCmd() *cobra.Command {
 				fmt.Println("Doc Refs:")
 				for _, d := range st.DocRefs {
 					fmt.Printf("  - %s\n", d)
+				}
+			}
+			if len(st.NonGoals) > 0 {
+				fmt.Println("Non-Goals:")
+				for _, ng := range st.NonGoals {
+					fmt.Printf("  - %s\n", ng)
 				}
 			}
 			if len(st.OpenQuestions) > 0 {

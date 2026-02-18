@@ -141,6 +141,9 @@ func newEpicShowCmd() *cobra.Command {
 			fmt.Printf("%s  %s\n", ui.Label("Title:"), e.Title)
 			fmt.Printf("%s  %s\n", ui.Label("Status:"), ui.StatusBadge(e.Status))
 			fmt.Printf("%s  %s\n", ui.Label("Initiative:"), e.Initiative)
+			if e.Fidelity != "" {
+				fmt.Printf("%s  %s\n", ui.Label("Fidelity:"), e.Fidelity)
+			}
 			fmt.Printf("%s  %s\n", ui.Label("Created:"), e.Created.Format("2006-01-02 15:04:05"))
 			fmt.Printf("%s  %s\n", ui.Label("Updated:"), e.Updated.Format("2006-01-02 15:04:05"))
 
@@ -151,6 +154,12 @@ func newEpicShowCmd() *cobra.Command {
 					for _, s := range p.Stories {
 						fmt.Printf("      - %s\n", s)
 					}
+				}
+			}
+			if len(e.NonGoals) > 0 {
+				fmt.Println("Non-Goals:")
+				for _, ng := range e.NonGoals {
+					fmt.Printf("  - %s\n", ng)
 				}
 			}
 			if len(e.OpenQuestions) > 0 {

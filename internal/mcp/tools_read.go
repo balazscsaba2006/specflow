@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	sfcontext "github.com/balazscsaba2006/specflow/internal/context"
 	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/hardq"
 	"github.com/balazscsaba2006/specflow/internal/models"
@@ -176,6 +177,16 @@ func (s *Server) registerReadTools() {
 	}, s.handleDiffCheck)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_scope_drift",
+		Description: "Compares planned files (from implementation plan) against actual files touched (from execution). Reports unexpected changes and missing implementations.",
+	}, s.handleScopeDrift)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_unstuck",
+		Description: "Assembles debugging-focused context when stuck during implementation. Gathers story, plan, current diff, execution state, handover notes, and suggests debugging steps.",
+	}, s.handleUnstuck)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_code_review",
 		Description: "Assembles a structured code review prompt for a story's latest execution. Loads the execution diff, story acceptance criteria, and implementation plan into a review template that checks: criteria met, planned files touched, unexpected changes, security issues, test coverage.",
 	}, s.handleCodeReview)
@@ -329,6 +340,9 @@ func (s *Server) handleEpicShow(_ context.Context, _ *mcp.CallToolRequest, input
 	if epic.Initiative != "" {
 		fmt.Fprintf(&b, "- **Initiative:** %s\n", epic.Initiative)
 	}
+	if epic.Fidelity != "" {
+		fmt.Fprintf(&b, "- **Fidelity:** %s\n", epic.Fidelity)
+	}
 
 	writeEpicPhases(&b, epic.Phases, stories)
 	writeMermaidDiagram(&b, epic.Phases, stories)
@@ -341,6 +355,7 @@ func (s *Server) handleEpicShow(_ context.Context, _ *mcp.CallToolRequest, input
 	}
 
 	writeStringSection(&b, "Open Questions", epic.OpenQuestions)
+	writeStringSection(&b, "Non-Goals", epic.NonGoals)
 	writeStringSection(&b, "Decisions", epic.Decisions)
 
 	if epic.Body != "" {
@@ -452,6 +467,9 @@ func (s *Server) handleStoryShow(_ context.Context, _ *mcp.CallToolRequest, inpu
 	if story.Epic != "" {
 		fmt.Fprintf(&b, "- **Epic:** %s\n", story.Epic)
 	}
+	if story.Fidelity != "" {
+		fmt.Fprintf(&b, "- **Fidelity:** %s\n", story.Fidelity)
+	}
 	if len(story.Labels) > 0 {
 		fmt.Fprintf(&b, "- **Labels:** %s\n", strings.Join(story.Labels, ", "))
 	}
@@ -481,6 +499,13 @@ func (s *Server) handleStoryShow(_ context.Context, _ *mcp.CallToolRequest, inpu
 		b.WriteString("\n### Open Questions\n")
 		for _, q := range story.OpenQuestions {
 			fmt.Fprintf(&b, "- %s\n", q)
+		}
+	}
+
+	if len(story.NonGoals) > 0 {
+		b.WriteString("\n### Non-Goals\n")
+		for _, ng := range story.NonGoals {
+			fmt.Fprintf(&b, "- %s\n", ng)
 		}
 	}
 
@@ -1084,6 +1109,178 @@ func (s *Server) handleReviewPrompt(_ context.Context, _ *mcp.CallToolRequest, i
 	}
 
 	return textResult(prompt), nil, nil
+}
+
+func (s *Server) handleScopeDrift(_ context.Context, _ *mcp.CallToolRequest, input storyRefInput) (*mcp.CallToolResult, any, error) {
+	if input.Story == "" {
+		return errResult("story is required"), nil, nil
+	}
+
+	plan, err := s.store.LoadPlan(input.Story)
+	if err != nil {
+		return errResultf("no plan found for story %q", input.Story), nil, nil
+	}
+
+	latest, err := s.store.LatestExecution(input.Story)
+	if err != nil {
+		return errResultf("no execution found for story %q", input.Story), nil, nil
+	}
+
+	plannedFiles := sfcontext.ExtractFileRefs(plan.Body)
+	plannedSet := make(map[string]bool, len(plannedFiles))
+	for _, f := range plannedFiles {
+		plannedSet[f] = true
+	}
+
+	touchedSet := make(map[string]bool, len(latest.FilesChanged))
+	for _, fc := range latest.FilesChanged {
+		touchedSet[fc.Path] = true
+	}
+
+	// Unexpected: touched but not planned.
+	var unexpected []string
+	for _, fc := range latest.FilesChanged {
+		if !plannedSet[fc.Path] {
+			unexpected = append(unexpected, fc.Path)
+		}
+	}
+
+	// Missing: planned but not touched.
+	var missing []string
+	for _, f := range plannedFiles {
+		if !touchedSet[f] {
+			missing = append(missing, f)
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Scope Drift for story `%s`\n\n", input.Story)
+	fmt.Fprintf(&b, "**Planned files:** %d | **Touched files:** %d\n\n", len(plannedFiles), len(latest.FilesChanged))
+
+	if len(unexpected) == 0 && len(missing) == 0 {
+		b.WriteString("No drift detected. All touched files were planned and all planned files were touched.\n")
+		return textResult(b.String()), nil, nil
+	}
+
+	if len(unexpected) > 0 {
+		b.WriteString("### Unexpected Files (touched but not planned)\n\n")
+		for _, f := range unexpected {
+			fmt.Fprintf(&b, "- %s\n", f)
+		}
+		b.WriteString("\n")
+	}
+
+	if len(missing) > 0 {
+		b.WriteString("### Missing Files (planned but not touched)\n\n")
+		for _, f := range missing {
+			fmt.Fprintf(&b, "- %s\n", f)
+		}
+		b.WriteString("\n")
+	}
+
+	return textResult(b.String()), nil, nil
+}
+
+func (s *Server) handleUnstuck(_ context.Context, _ *mcp.CallToolRequest, input storyRefInput) (*mcp.CallToolResult, any, error) {
+	if input.Story == "" {
+		return errResult("story is required"), nil, nil
+	}
+
+	story, err := s.findStory(input.Story)
+	if err != nil {
+		return errResultf("finding story: %v", err), nil, nil
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Debugging Context for `%s`\n\n", story.Title)
+	fmt.Fprintf(&b, "**Story:** %s | **Status:** %s | **Priority:** %s\n\n", story.Slug, story.Status, story.Priority)
+
+	// Acceptance criteria.
+	if len(story.Acceptance) > 0 {
+		b.WriteString("### What We're Trying to Achieve\n")
+		for _, ac := range story.Acceptance {
+			fmt.Fprintf(&b, "- [ ] %s\n", ac)
+		}
+		b.WriteString("\n")
+	}
+
+	// Plan.
+	if plan, planErr := s.store.LoadPlan(input.Story); planErr == nil {
+		b.WriteString("### Implementation Plan\n")
+		b.WriteString(plan.Body)
+		b.WriteString("\n\n")
+	}
+
+	// Execution state + diff.
+	if latest, execErr := s.store.LatestExecution(input.Story); execErr == nil {
+		fmt.Fprintf(&b, "### Current Execution\n")
+		fmt.Fprintf(&b, "- **ID:** %s\n", latest.ID)
+		fmt.Fprintf(&b, "- **Status:** %s\n", latest.Status)
+		fmt.Fprintf(&b, "- **Files changed:** %d\n\n", len(latest.FilesChanged))
+
+		// Current diff.
+		if latest.GitRefBefore != "" {
+			if diff, diffErr := git.Diff(latest.GitRefBefore, "HEAD"); diffErr == nil && diff != "" {
+				b.WriteString("### Changes So Far\n\n```diff\n")
+				// Truncate large diffs.
+				if len(diff) > 5000 {
+					b.WriteString(diff[:5000])
+					b.WriteString("\n... (truncated)\n")
+				} else {
+					b.WriteString(diff)
+				}
+				b.WriteString("```\n\n")
+			}
+		}
+
+		// Handover notes.
+		if notes, hErr := s.store.LoadHandover(input.Story, latest.ID); hErr == nil {
+			b.WriteString("### Handover Notes from Previous Session\n")
+			b.WriteString(notes)
+			b.WriteString("\n\n")
+		}
+	}
+
+	// Open questions and assumptions.
+	if len(story.OpenQuestions) > 0 {
+		b.WriteString("### Open Questions\n")
+		for _, q := range story.OpenQuestions {
+			fmt.Fprintf(&b, "- %s\n", q)
+		}
+		b.WriteString("\n")
+	}
+	if len(story.Assumptions) > 0 {
+		b.WriteString("### Assumptions\n")
+		for _, a := range story.Assumptions {
+			fmt.Fprintf(&b, "- %s\n", a)
+		}
+		b.WriteString("\n")
+	}
+
+	// Recent log entries.
+	if entries, logErr := s.store.ReadLog(10); logErr == nil && len(entries) > 0 {
+		b.WriteString("### Recent Activity\n")
+		for idx := range entries {
+			e := &entries[idx]
+			ts := e.Timestamp.Format("15:04:05")
+			fmt.Fprintf(&b, "- %s `%s` %s", ts, e.Type, e.Entity)
+			if e.From != "" || e.To != "" {
+				fmt.Fprintf(&b, " (%s -> %s)", e.From, e.To)
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	// Debugging steps prompt.
+	b.WriteString("### Suggested Debugging Steps\n\n")
+	b.WriteString("1. **Reproduce** — Can you trigger the issue reliably? Write a failing test if possible.\n")
+	b.WriteString("2. **Isolate** — Binary search: which change introduced the problem? Comment out recent changes.\n")
+	b.WriteString("3. **Hypothesize** — Based on the diff and error, what's the most likely root cause?\n")
+	b.WriteString("4. **Verify** — Test your hypothesis with the smallest possible change.\n")
+	b.WriteString("5. **Fix** — Apply the fix, run tests, verify acceptance criteria.\n")
+
+	return textResult(b.String()), nil, nil
 }
 
 func (s *Server) handleCodeReview(_ context.Context, _ *mcp.CallToolRequest, input storyRefInput) (*mcp.CallToolResult, any, error) {

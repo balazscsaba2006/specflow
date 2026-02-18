@@ -6,8 +6,10 @@ epic: ""
 blocked_by: []
 labels: []
 acceptance: []
+fidelity: ""
 doc_refs: []
 open_questions: []
+non_goals: []
 assumptions: []
 ---
 # Story Title

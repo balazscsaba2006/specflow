@@ -35,6 +35,13 @@ const contextTemplate = `# Execution Context: {{ .Story.Title }}
 {{- if .Epic }}
 ### Epic: {{ .Epic.Title }}
 **Status:** {{ .Epic.Status }}
+{{- if .Epic.Fidelity }}
+**Fidelity:** {{ .Epic.Fidelity }}
+{{- end }}
+{{ if .Epic.NonGoals }}
+#### Non-Goals
+{{ range .Epic.NonGoals }}- {{ . }}
+{{ end }}{{ end }}
 {{ if .Epic.Body }}{{ .Epic.Body }}{{ end }}
 {{ if .Epic.Phases }}
 #### Phases
@@ -56,6 +63,13 @@ const contextTemplate = `# Execution Context: {{ .Story.Title }}
 ---
 
 ## Layer 3: Spec Requirements
+{{- if .Story.Fidelity }}
+**Fidelity:** {{ .Story.Fidelity }}
+{{- end }}
+{{ if .Story.NonGoals }}
+### Non-Goals
+{{ range .Story.NonGoals }}- {{ . }}
+{{ end }}{{ end }}
 {{ if .Story.Acceptance }}
 ### Acceptance Criteria
 {{ range .Story.Acceptance }}- [ ] {{ . }}
@@ -70,6 +84,10 @@ const contextTemplate = `# Execution Context: {{ .Story.Title }}
 ---
 
 ## Layer 4: Implementation Plan
+{{ if .HandoverNotes }}
+### Handover from Previous Session
+{{ .HandoverNotes }}
+{{ end }}
 {{ if .HasPlan }}
 **Status:** {{ .Plan.Status }}
 {{ .Plan.Body }}

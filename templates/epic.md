@@ -2,8 +2,10 @@
 title: ""
 status: draft
 initiative: ""
+fidelity: ""
 phases: []
 open_questions: []
+non_goals: []
 decisions: []
 ---
 # Epic Title

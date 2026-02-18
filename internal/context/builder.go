@@ -32,8 +32,9 @@ type ContextData struct {
 	Docs []*models.Document
 
 	// Layer 4: Implementation plan
-	Plan    *models.Plan
-	HasPlan bool
+	Plan           *models.Plan
+	HasPlan        bool
+	HandoverNotes  string
 
 	// Layer 5: Referenced files
 	ReferencedFiles []FileContent
@@ -225,12 +226,21 @@ func (b *Builder) findArchivedDoc(slug string) *models.Document {
 	return nil
 }
 
-// assemblePlan loads Layer 4: implementation plan.
+// assemblePlan loads Layer 4: implementation plan and handover notes.
 func (b *Builder) assemblePlan(data *ContextData, storySlug string) {
 	plan, planErr := b.store.LoadPlan(storySlug)
 	if planErr == nil {
 		data.Plan = plan
 		data.HasPlan = true
+	}
+
+	// Check for handover notes from a paused execution.
+	if latest, err := b.store.LatestExecution(storySlug); err == nil {
+		if latest.Status == models.ExecutionStatusPaused {
+			if notes, loadErr := b.store.LoadHandover(storySlug, latest.ID); loadErr == nil {
+				data.HandoverNotes = notes
+			}
+		}
 	}
 }
 

@@ -32,4 +32,5 @@ const (
 	LogStoryCreated         = "story.created"
 	LogPlanSaved            = "plan.saved"
 	LogQuestionResolved     = "question.resolved"
+	LogExecutionPaused      = "execution.paused"
 )

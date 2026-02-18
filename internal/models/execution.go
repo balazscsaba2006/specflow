@@ -7,12 +7,14 @@ const (
 	ExecutionStatusStarted   = "started"
 	ExecutionStatusCompleted = "completed"
 	ExecutionStatusFailed    = "failed"
+	ExecutionStatusPaused    = "paused"
 )
 
 var ValidExecutionStatuses = []string{
 	ExecutionStatusStarted,
 	ExecutionStatusCompleted,
 	ExecutionStatusFailed,
+	ExecutionStatusPaused,
 }
 
 type FileChange struct {
@@ -29,5 +31,6 @@ type Execution struct {
 	CompletedAt  *time.Time   `yaml:"completed_at,omitempty"`
 	GitRefBefore string       `yaml:"git_ref_before"`
 	GitRefAfter  string       `yaml:"git_ref_after,omitempty"`
-	FilesChanged []FileChange `yaml:"files_changed,omitempty"`
+	FilesChanged  []FileChange `yaml:"files_changed,omitempty"`
+	HandoverNotes string       `yaml:"handover_notes,omitempty"`
 }

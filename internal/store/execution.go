@@ -107,6 +107,25 @@ func (s *Store) LatestExecution(storySlug string) (*models.Execution, error) {
 	return execs[0], nil
 }
 
+// SaveHandover writes handover notes as raw markdown to the execution directory.
+func (s *Store) SaveHandover(notes, storySlug, execID string) error {
+	path := s.HandoverFile(storySlug, execID)
+	if err := os.WriteFile(path, []byte(notes), 0o600); err != nil {
+		return fmt.Errorf("writing handover notes: %w", err)
+	}
+	return nil
+}
+
+// LoadHandover reads handover notes from the execution directory.
+func (s *Store) LoadHandover(storySlug, execID string) (string, error) {
+	path := s.HandoverFile(storySlug, execID)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading handover notes: %w", err)
+	}
+	return string(data), nil
+}
+
 // writeExecutionMeta marshals an Execution to YAML and writes it to meta.yaml.
 func (s *Store) writeExecutionMeta(e *models.Execution) error {
 	data, err := yaml.Marshal(e)
