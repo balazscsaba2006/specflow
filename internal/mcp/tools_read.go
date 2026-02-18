@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	sfcontext "github.com/balazscsaba2006/specflow/internal/context"
 	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/hardq"
 	"github.com/balazscsaba2006/specflow/internal/models"
@@ -178,7 +177,7 @@ func (s *Server) registerReadTools() {
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_scope_drift",
-		Description: "Compares planned files (from implementation plan) against actual files touched (from execution). Reports unexpected changes and missing implementations.",
+		Description: "Assembles a structured prompt to evaluate plan-vs-reality drift. Loads the implementation plan and actual git diff, then asks for a semantic comparison: what was implemented as planned, what deviated, what's missing, and what's unplanned.",
 	}, s.handleScopeDrift)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -1102,45 +1101,29 @@ func (s *Server) handleScopeDrift(_ context.Context, _ *mcp.CallToolRequest, inp
 		return errResultf("no execution found for story %q", input.Story), nil, nil
 	}
 
-	plannedFiles := sfcontext.ExtractFileRefs(plan.Body)
-	unexpected, missing := computeScopeDrift(plannedFiles, latest.FilesChanged)
+	diffContent := executionDiffContent(latest)
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "## Scope Drift for story `%s`\n\n", input.Story)
-	fmt.Fprintf(&b, "**Planned files:** %d | **Touched files:** %d\n\n", len(plannedFiles), len(latest.FilesChanged))
+	prompt := hardq.ScopeDriftPrompt
+	prompt = strings.ReplaceAll(prompt, "{{plan_content}}", plan.Body)
+	prompt = strings.ReplaceAll(prompt, "{{diff_content}}", diffContent)
 
-	if len(unexpected) == 0 && len(missing) == 0 {
-		b.WriteString("No drift detected. All touched files were planned and all planned files were touched.\n")
-	}
-	writeStringSection(&b, "Unexpected Files (touched but not planned)", unexpected)
-	writeStringSection(&b, "Missing Files (planned but not touched)", missing)
-
-	return textResult(b.String()), nil, nil
+	return textResult(prompt), nil, nil
 }
 
-// computeScopeDrift compares planned files against actual file changes.
-func computeScopeDrift(plannedFiles []string, filesChanged []models.FileChange) (unexpected, missing []string) {
-	plannedSet := make(map[string]bool, len(plannedFiles))
-	for _, f := range plannedFiles {
-		plannedSet[f] = true
+// executionDiffContent returns the git diff for an execution.
+// Falls back to HEAD when git_ref_after is missing or equals git_ref_before.
+func executionDiffContent(exec *models.Execution) string {
+	if exec.GitRefBefore == "" {
+		return "(no diff available — execution has no git baseline)"
 	}
-
-	touchedSet := make(map[string]bool, len(filesChanged))
-	for _, fc := range filesChanged {
-		touchedSet[fc.Path] = true
+	to := "HEAD"
+	if exec.GitRefAfter != "" && exec.GitRefAfter != exec.GitRefBefore {
+		to = exec.GitRefAfter
 	}
-
-	for _, fc := range filesChanged {
-		if !plannedSet[fc.Path] {
-			unexpected = append(unexpected, fc.Path)
-		}
+	if d, err := git.Diff(exec.GitRefBefore, to); err == nil && d != "" {
+		return d
 	}
-	for _, f := range plannedFiles {
-		if !touchedSet[f] {
-			missing = append(missing, f)
-		}
-	}
-	return unexpected, missing
+	return "(no diff available)"
 }
 
 func (s *Server) handleUnstuck(_ context.Context, _ *mcp.CallToolRequest, input storyRefInput) (*mcp.CallToolResult, any, error) {
@@ -1270,16 +1253,7 @@ func (s *Server) handleCodeReview(_ context.Context, _ *mcp.CallToolRequest, inp
 	}
 
 	// Get diff.
-	diffContent := "(no diff available)"
-	if latest.GitRefBefore != "" {
-		to := "HEAD"
-		if latest.GitRefAfter != "" {
-			to = latest.GitRefAfter
-		}
-		if d, diffErr := git.Diff(latest.GitRefBefore, to); diffErr == nil && d != "" {
-			diffContent = d
-		}
-	}
+	diffContent := executionDiffContent(latest)
 
 	// Assemble the review prompt.
 	prompt := hardq.CodeReviewPrompt

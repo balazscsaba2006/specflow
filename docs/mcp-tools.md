@@ -267,13 +267,13 @@ Detect drift between specs and stories. Checks if documents were updated more re
 
 ### sf_scope_drift
 
-Compare planned files (from implementation plan) against actual files changed in the latest execution. Detects drift between what was planned and what was implemented.
+Assembles a structured prompt to evaluate semantic plan-vs-reality drift. Loads the implementation plan and actual git diff, then asks for a comparison: what was implemented as planned, what deviated, what's missing, and what's unplanned.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `story` | string | yes | Story slug |
 
-**Response:** Comparison of planned vs actual files with three sections: matched files, unexpected files (changed but not in plan), and missing files (in plan but not changed).
+**Response:** A structured prompt containing the plan content and actual git diff, with instructions to evaluate each planned change against the diff. Designed to be processed by Claude Code for semantic drift analysis. Falls back to a live `git diff` (from execution baseline to HEAD) when execution file tracking didn't capture changes.
 
 ---
 

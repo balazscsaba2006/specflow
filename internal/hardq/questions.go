@@ -170,6 +170,36 @@ Check each of these:
 
 Be direct, not diplomatic. If something works now but will cause regret in 6 months, flag it.`
 
+// ScopeDriftPrompt is the template for evaluating plan-vs-reality drift.
+// Contains placeholders: {{plan_content}}, {{diff_content}}.
+const ScopeDriftPrompt = `Evaluate whether the implementation matches the plan.
+
+## Implementation Plan
+{{plan_content}}
+
+## Actual Code Diff
+{{diff_content}}
+
+## Drift Analysis
+
+For each section/step in the plan, answer:
+1. **Implemented as planned** — the diff matches what the plan described
+2. **Deviated** — implemented differently than planned (explain how)
+3. **Missing** — planned but not present in the diff
+
+Then scan the diff for changes NOT mentioned in the plan:
+4. **Unplanned additions** — changes in the diff that have no corresponding plan entry
+
+Output a summary table:
+
+| Planned Change | Status | Notes |
+|----------------|--------|-------|
+| ... | Implemented / Deviated / Missing | ... |
+
+Then list any unplanned changes found in the diff.
+
+Be specific — reference file names and function names. If the plan is vague, flag that too.`
+
 // DecomposePrompt is the template for story decomposition from a spec.
 // Contains a {{spec_content}} placeholder.
 const DecomposePrompt = `Decompose the following spec into implementable stories.
