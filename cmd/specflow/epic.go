@@ -89,6 +89,14 @@ func newEpicLsCmd() *cobra.Command {
 				return err
 			}
 
+			includeArchived, _ := cmd.Flags().GetBool("include-archived")
+			if includeArchived {
+				archived, archErr := appStore.ListArchivedEpics()
+				if archErr == nil {
+					epics = append(epics, archived...)
+				}
+			}
+
 			initiative, _ := cmd.Flags().GetString("initiative")
 			if initiative != "" {
 				var filtered []*models.Epic
@@ -112,6 +120,7 @@ func newEpicLsCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String("initiative", "", "Filter by initiative slug")
+	cmd.Flags().Bool("include-archived", false, "Include archived epics")
 
 	return cmd
 }
@@ -255,28 +264,29 @@ func newEpicSetCmd() *cobra.Command {
 }
 
 func newEpicArchiveCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "archive <slug>",
-		Short: "Archive an epic (shortcut for set <slug> status archived)",
+		Short: "Archive a completed epic (move to archive, compact files)",
+		Long:  "Moves the epic tree to .specflow/archive/, compacts story and epic files to frontmatter-only tombstones, and moves execution directories.",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
+			force, _ := cmd.Flags().GetBool("force")
 
-			e, err := appStore.LoadEpic(slug)
+			summary, err := appStore.ArchiveEpic(slug, force)
 			if err != nil {
 				return err
 			}
 
-			e.Status = models.EpicStatusArchived
-
-			if err := appStore.SaveEpic(e); err != nil {
-				return err
-			}
-
-			fmt.Printf("Archived epic %q\n", slug)
+			fmt.Printf("Archived epic %q (%d stories, %d executions compacted)\n",
+				summary.EpicTitle, summary.StoryCount, summary.ExecutionCount)
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("force", false, "Archive even if epic/stories aren't in completed/done status")
+
+	return cmd
 }
 
 // checkPRDGate returns an error if careful mode requires a PRD before activating an epic.

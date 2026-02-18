@@ -15,8 +15,9 @@ Show project status with progress per epic.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `scope` | string | no | Epic slug to scope status to, or empty for project-wide |
+| `include_archived` | bool | no | Include archived epics in the status rollup |
 
-**Response:** Markdown table with per-epic breakdown (stories, done count, progress), plus standalone stories summary.
+**Response:** Markdown table with per-epic breakdown (stories, done count, progress), plus standalone stories summary. When `include_archived` is true, adds a separate archived epics section.
 
 ---
 
@@ -78,6 +79,7 @@ List stories with optional filters.
 | `status` | string | no | Filter by status |
 | `label` | string | no | Filter by label |
 | `blocked` | bool | no | Only show stories with blockers |
+| `include_archived` | bool | no | Include stories from archived epics |
 
 **Response:** Markdown table of matching stories with slug, title, status, priority, epic, and labels.
 

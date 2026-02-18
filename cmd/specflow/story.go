@@ -92,6 +92,7 @@ func newStoryLsCmd() *cobra.Command {
 			statusFilter, _ := cmd.Flags().GetString("status")
 			labelFilter, _ := cmd.Flags().GetString("label")
 			blockedOnly, _ := cmd.Flags().GetBool("blocked")
+			includeArchived, _ := cmd.Flags().GetBool("include-archived")
 
 			var stories []*models.Story
 			var err error
@@ -103,6 +104,10 @@ func newStoryLsCmd() *cobra.Command {
 			}
 			if err != nil {
 				return err
+			}
+
+			if includeArchived {
+				stories = append(stories, collectArchivedStories(epicSlug)...)
 			}
 
 			// Apply filters.
@@ -142,6 +147,7 @@ func newStoryLsCmd() *cobra.Command {
 	cmd.Flags().String("status", "", "Filter by status")
 	cmd.Flags().String("label", "", "Filter by label")
 	cmd.Flags().Bool("blocked", false, "Only show stories with non-empty blocked_by")
+	cmd.Flags().Bool("include-archived", false, "Include stories from archived epics")
 
 	return cmd
 }

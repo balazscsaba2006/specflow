@@ -3,10 +3,12 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/models"
+	"github.com/balazscsaba2006/specflow/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -371,8 +373,17 @@ func (s *Server) handleStoryUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 		})
 	}
 
-	return textResult(fmt.Sprintf("Updated story **%s** (`%s`)\nStatus: %s | Priority: %s",
-		st.Title, st.Slug, st.Status, st.Priority)), nil, nil
+	msg := fmt.Sprintf("Updated story **%s** (`%s`)\nStatus: %s | Priority: %s",
+		st.Title, st.Slug, st.Status, st.Priority)
+
+	// Auto-complete epic and initiative when all stories are done.
+	if st.Status == models.StoryStatusDone && st.Epic != "" {
+		if cascadeMsg := s.cascadeCompletion(st.Epic); cascadeMsg != "" {
+			msg += "\n\n" + cascadeMsg
+		}
+	}
+
+	return textResult(msg), nil, nil
 }
 
 func (s *Server) handleDocWrite(_ context.Context, _ *mcp.CallToolRequest, input docWriteInput) (*mcp.CallToolResult, any, error) {
@@ -575,26 +586,7 @@ func (s *Server) handleExecutionComplete(_ context.Context, _ *mcp.CallToolReque
 		return errResultf("execution %q not found", input.ExecutionID), nil, nil
 	}
 
-	now := time.Now().UTC().Truncate(time.Second)
-	exec.Status = models.ExecutionStatusCompleted
-	exec.CompletedAt = &now
-
-	// Capture git state at completion.
-	if gitRef, gitErr := git.CurrentRef(); gitErr == nil {
-		exec.GitRefAfter = gitRef
-	}
-	if exec.GitRefBefore != "" {
-		if changes, gitErr := git.FileChanges(exec.GitRefBefore, ""); gitErr == nil {
-			for _, c := range changes {
-				exec.FilesChanged = append(exec.FilesChanged, models.FileChange{
-					Path:   c.Path,
-					Action: c.Action,
-				})
-			}
-		}
-	}
-
-	if err := s.store.SaveExecution(exec); err != nil {
+	if err := s.completeExecution(exec); err != nil {
 		return errResultf("saving execution: %v", err), nil, nil
 	}
 
@@ -769,6 +761,128 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 // --- Helpers ---
 
+// completeExecution finalizes an execution: sets status, captures git state, and auto-transitions story to verifying.
+func (s *Server) completeExecution(exec *models.Execution) error {
+	now := time.Now().UTC().Truncate(time.Second)
+	exec.Status = models.ExecutionStatusCompleted
+	exec.CompletedAt = &now
+
+	if gitRef, gitErr := git.CurrentRef(); gitErr == nil {
+		exec.GitRefAfter = gitRef
+	}
+	if exec.GitRefBefore != "" {
+		if changes, gitErr := git.FileChanges(exec.GitRefBefore, ""); gitErr == nil {
+			for _, c := range changes {
+				exec.FilesChanged = append(exec.FilesChanged, models.FileChange{
+					Path:   c.Path,
+					Action: c.Action,
+				})
+			}
+		}
+	}
+
+	if err := s.store.SaveExecution(exec); err != nil {
+		return err
+	}
+
+	// Auto-transition story to verifying.
+	if st, stErr := s.findStory(exec.Story); stErr == nil && st.Status == models.StoryStatusInProgress {
+		st.Status = models.StoryStatusVerifying
+		_ = s.store.SaveStory(st)
+		_ = s.store.AppendLog(models.LogEntry{
+			Type:   models.LogStoryStatusChanged,
+			Entity: st.Slug,
+			Epic:   st.Epic,
+			From:   models.StoryStatusInProgress,
+			To:     models.StoryStatusVerifying,
+		})
+	}
+
+	return nil
+}
+
+// cascadeCompletion checks if all stories in an epic are done and auto-completes
+// the epic. If the epic has an initiative, checks if all epics in that initiative
+// are done and auto-completes the initiative. Returns a message describing what was auto-completed.
+func (s *Server) cascadeCompletion(epicSlug string) string {
+	msg := s.tryCompleteEpic(epicSlug)
+	if msg == "" {
+		return ""
+	}
+
+	ep, err := s.store.LoadEpic(epicSlug)
+	if err != nil || ep.Initiative == "" {
+		return msg
+	}
+
+	if iniMsg := s.tryCompleteInitiative(ep.Initiative); iniMsg != "" {
+		return msg + "\n" + iniMsg
+	}
+	return msg
+}
+
+// tryCompleteEpic checks if all stories in an epic are done and auto-completes it.
+func (s *Server) tryCompleteEpic(epicSlug string) string {
+	ep, err := s.store.LoadEpic(epicSlug)
+	if err != nil || ep.Status == models.EpicStatusCompleted {
+		return ""
+	}
+
+	stories, err := s.store.ListStories(epicSlug)
+	if err != nil || len(stories) == 0 {
+		return ""
+	}
+
+	for _, st := range stories {
+		if st.Status != models.StoryStatusDone {
+			return ""
+		}
+	}
+
+	oldStatus := ep.Status
+	ep.Status = models.EpicStatusCompleted
+	if saveErr := s.store.SaveEpic(ep); saveErr != nil {
+		return ""
+	}
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogStoryStatusChanged,
+		Entity: ep.Slug,
+		From:   oldStatus,
+		To:     models.EpicStatusCompleted,
+	})
+
+	return fmt.Sprintf("Auto-completed epic **%s** (all stories done)", ep.Slug)
+}
+
+// tryCompleteInitiative checks if all epics in an initiative are completed and auto-completes it.
+func (s *Server) tryCompleteInitiative(iniSlug string) string {
+	ini, err := s.store.LoadInitiative(iniSlug)
+	if err != nil || ini.Status == models.InitiativeStatusCompleted {
+		return ""
+	}
+
+	for _, linkedEpic := range ini.Epics {
+		linkedEp, loadErr := s.store.LoadEpic(linkedEpic)
+		if loadErr != nil || linkedEp.Status != models.EpicStatusCompleted {
+			return ""
+		}
+	}
+
+	oldStatus := ini.Status
+	ini.Status = models.InitiativeStatusCompleted
+	if saveErr := s.store.SaveInitiative(ini); saveErr != nil {
+		return ""
+	}
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogStoryStatusChanged,
+		Entity: ini.Slug,
+		From:   oldStatus,
+		To:     models.InitiativeStatusCompleted,
+	})
+
+	return fmt.Sprintf("Auto-completed initiative **%s** (all epics done)", ini.Slug)
+}
+
 // findStory searches for a story by slug across all epics and standalone stories.
 func (s *Server) findStory(slug string) (*models.Story, error) {
 	// Try standalone first.
@@ -776,7 +890,7 @@ func (s *Server) findStory(slug string) (*models.Story, error) {
 		return st, nil
 	}
 
-	// Search across all stories.
+	// Search across all active stories.
 	stories, err := s.store.ListAllStories()
 	if err != nil {
 		return nil, fmt.Errorf("searching for story %q: %w", slug, err)
@@ -788,19 +902,43 @@ func (s *Server) findStory(slug string) (*models.Story, error) {
 		}
 	}
 
+	// Fall back to archived epics.
+	archivedEpics, archErr := s.store.ListArchivedEpics()
+	if archErr == nil {
+		for _, ep := range archivedEpics {
+			if st, loadErr := s.store.LoadArchivedStory(slug, ep.Slug); loadErr == nil {
+				return st, nil
+			}
+		}
+	}
+
 	return nil, fmt.Errorf("story %q not found", slug)
 }
 
-// findDoc searches for a doc by slug across all epics.
+// findDoc searches for a doc by slug across all epics, including archived.
 func (s *Server) findDoc(slug string) (*models.Document, string, error) {
+	// Search active epics.
 	epics, err := s.store.ListEpics()
 	if err != nil {
 		return nil, "", fmt.Errorf("listing epics: %w", err)
 	}
-
 	for _, ep := range epics {
-		if doc, err := s.store.LoadDoc(slug, ep.Slug); err == nil {
+		if doc, loadErr := s.store.LoadDoc(slug, ep.Slug); loadErr == nil {
 			return doc, ep.Slug, nil
+		}
+	}
+
+	// Fall back to archived epics.
+	archivedEpics, archErr := s.store.ListArchivedEpics()
+	if archErr == nil {
+		for _, ep := range archivedEpics {
+			docPath := filepath.Join(s.store.ArchiveEpicDocsDir(ep.Slug), slug+".md")
+			var doc models.Document
+			body, parseErr := store.ParseFile(docPath, &doc)
+			if parseErr == nil {
+				doc.Body = body
+				return &doc, ep.Slug, nil
+			}
 		}
 	}
 

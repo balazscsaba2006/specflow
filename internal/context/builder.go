@@ -196,11 +196,33 @@ func (b *Builder) assembleDocs(data *ContextData, story *models.Story) {
 			// Try project-level docs if epic-scoped failed.
 			doc, docErr = b.store.LoadDoc(docRef, "")
 			if docErr != nil {
-				continue
+				// Try archived epic docs as last resort.
+				doc = b.findArchivedDoc(docRef)
+				if doc == nil {
+					continue
+				}
 			}
 		}
 		data.Docs = append(data.Docs, doc)
 	}
+}
+
+// findArchivedDoc searches for a doc in archived epics.
+func (b *Builder) findArchivedDoc(slug string) *models.Document {
+	archivedEpics, err := b.store.ListArchivedEpics()
+	if err != nil {
+		return nil
+	}
+	for _, ep := range archivedEpics {
+		docPath := filepath.Join(b.store.ArchiveEpicDocsDir(ep.Slug), slug+".md")
+		var doc models.Document
+		body, parseErr := store.ParseFile(docPath, &doc)
+		if parseErr == nil {
+			doc.Body = body
+			return &doc
+		}
+	}
+	return nil
 }
 
 // assemblePlan loads Layer 4: implementation plan.
@@ -226,7 +248,7 @@ func (b *Builder) assembleReferencedFiles(data *ContextData) {
 	}
 }
 
-// findStory searches for a story across all epics and standalone stories.
+// findStory searches for a story across all epics, standalone stories, and archived epics.
 func (b *Builder) findStory(slug string) (*models.Story, error) {
 	all, err := b.store.ListAllStories()
 	if err != nil {
@@ -237,6 +259,17 @@ func (b *Builder) findStory(slug string) (*models.Story, error) {
 			return st, nil
 		}
 	}
+
+	// Fall back to archived epics.
+	archivedEpics, archErr := b.store.ListArchivedEpics()
+	if archErr == nil {
+		for _, ep := range archivedEpics {
+			if st, loadErr := b.store.LoadArchivedStory(slug, ep.Slug); loadErr == nil {
+				return st, nil
+			}
+		}
+	}
+
 	return nil, fmt.Errorf("story %q not found", slug)
 }
 

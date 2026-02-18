@@ -231,6 +231,7 @@ List epics. Outputs a table with columns: SLUG, TITLE, STATUS, INITIATIVE.
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--initiative` | string | `""` | Filter by initiative slug |
+| `--include-archived` | bool | `false` | Include archived epics in the listing |
 
 ### epic show
 
@@ -281,16 +282,24 @@ Quick-update a single field on an epic without opening an editor.
 ### epic archive
 
 ```
-specflow epic archive <slug>
+specflow epic archive <slug> [flags]
 ```
 
-Archive an epic. Shortcut for `specflow epic set <slug> status archived`.
+Archive a completed epic. Moves the epic tree to `.specflow/archive/`, compacts story and epic files to frontmatter-only tombstones (body stripped), and moves execution directories. The original markdown body is lost from the archived files but preserved in git history.
+
+By default, requires the epic to have status `completed` and all stories to have status `done`. Use `--force` to bypass these checks.
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `slug` | yes | Slug of the epic to archive |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--force` | bool | `false` | Archive even if epic/stories aren't in completed/done status |
 
 ---
 
@@ -341,6 +350,7 @@ List stories. Outputs a table with columns: SLUG, TITLE, STATUS, PRIORITY, EPIC,
 | `--status` | string | `""` | Filter by status |
 | `--label` | string | `""` | Filter by label |
 | `--blocked` | bool | `false` | Only show stories with non-empty `blocked_by` |
+| `--include-archived` | bool | `false` | Include stories from archived epics |
 
 ### story show
 
@@ -594,6 +604,12 @@ With a slug argument, auto-detects the entity type (initiative, epic, or story) 
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `slug` | no | Entity slug to show detail for (auto-detects type) |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--include-archived` | bool | `false` | Include archived epics in the project-wide status rollup |
 
 ---
 

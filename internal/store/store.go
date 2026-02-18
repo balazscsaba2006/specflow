@@ -131,6 +131,40 @@ func (s *Store) TemplatesDir() string {
 	return filepath.Join(s.root, "templates")
 }
 
+// Archive path helpers
+
+func (s *Store) ArchiveDir() string {
+	return filepath.Join(s.root, "archive")
+}
+
+func (s *Store) ArchiveEpicsDir() string {
+	return filepath.Join(s.ArchiveDir(), "epics")
+}
+
+func (s *Store) ArchiveEpicDir(slug string) string {
+	return filepath.Join(s.ArchiveEpicsDir(), slug)
+}
+
+func (s *Store) ArchiveEpicFile(slug string) string {
+	return filepath.Join(s.ArchiveEpicDir(slug), "epic.md")
+}
+
+func (s *Store) ArchiveEpicStoriesDir(slug string) string {
+	return filepath.Join(s.ArchiveEpicDir(slug), "stories")
+}
+
+func (s *Store) ArchiveEpicDocsDir(slug string) string {
+	return filepath.Join(s.ArchiveEpicDir(slug), "docs")
+}
+
+func (s *Store) ArchiveExecutionsDir() string {
+	return filepath.Join(s.ArchiveDir(), "executions")
+}
+
+func (s *Store) ArchiveStoryExecutionsDir(storySlug string) string {
+	return filepath.Join(s.ArchiveExecutionsDir(), storySlug)
+}
+
 // Init creates the base .specflow/ directory structure.
 func (s *Store) Init() error {
 	dirs := []string{

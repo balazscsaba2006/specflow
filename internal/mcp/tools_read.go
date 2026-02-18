@@ -18,7 +18,8 @@ var priorityRank = map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 
 // --- Input structs ---
 
 type statusInput struct {
-	Scope string `json:"scope,omitempty" jsonschema:"optional scope filter (epic slug or 'all')"`
+	Scope           string `json:"scope,omitempty" jsonschema:"optional scope filter (epic slug or 'all')"`
+	IncludeArchived bool   `json:"include_archived,omitempty" jsonschema:"include archived epics in results"`
 }
 
 type slugInput struct {
@@ -30,10 +31,11 @@ type storyNextInput struct {
 }
 
 type storyLsInput struct {
-	Epic    string `json:"epic,omitempty" jsonschema:"filter by epic slug"`
-	Status  string `json:"status,omitempty" jsonschema:"filter by status"`
-	Label   string `json:"label,omitempty" jsonschema:"filter by label"`
-	Blocked bool   `json:"blocked,omitempty" jsonschema:"show only blocked stories"`
+	Epic            string `json:"epic,omitempty" jsonschema:"filter by epic slug"`
+	Status          string `json:"status,omitempty" jsonschema:"filter by status"`
+	Label           string `json:"label,omitempty" jsonschema:"filter by label"`
+	Blocked         bool   `json:"blocked,omitempty" jsonschema:"show only blocked stories"`
+	IncludeArchived bool   `json:"include_archived,omitempty" jsonschema:"include stories from archived epics"`
 }
 
 type docReadInput struct {
@@ -214,7 +216,28 @@ func (s *Server) handleStatus(_ context.Context, _ *mcp.CallToolRequest, input s
 		writeStatusBlock(&b, "Standalone Stories", standalone)
 	}
 
+	if input.IncludeArchived {
+		s.writeArchivedStatus(&b)
+	}
+
 	return textResult(b.String()), nil, nil
+}
+
+// writeArchivedStatus appends archived epic status blocks to the builder.
+func (s *Server) writeArchivedStatus(b *strings.Builder) {
+	archivedEpics, err := s.store.ListArchivedEpics()
+	if err != nil || len(archivedEpics) == 0 {
+		return
+	}
+	b.WriteString("\n## Archived\n\n")
+	for _, ep := range archivedEpics {
+		archStories, stErr := s.store.ListArchivedStories(ep.Slug)
+		if stErr != nil {
+			continue
+		}
+		writeStatusBlock(b, ep.Title+" [archived]", archStories)
+		b.WriteString("\n")
+	}
 }
 
 // writeStatusBlock writes a status summary block for a group of stories.
@@ -483,6 +506,7 @@ func (s *Server) handleStoryNext(_ context.Context, _ *mcp.CallToolRequest, inpu
 	}
 
 	statusMap := buildStatusMap(allStories)
+	archivedSlugs := s.buildArchivedSlugSet()
 
 	var candidates []*models.Story
 	for _, st := range allStories {
@@ -492,7 +516,7 @@ func (s *Server) handleStoryNext(_ context.Context, _ *mcp.CallToolRequest, inpu
 		if input.Epic != "" && st.Epic != input.Epic {
 			continue
 		}
-		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap) {
+		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap, archivedSlugs) {
 			continue
 		}
 		candidates = append(candidates, st)
@@ -545,6 +569,10 @@ func (s *Server) handleStoryLs(_ context.Context, _ *mcp.CallToolRequest, input 
 	}
 	if err != nil {
 		return errResultf("listing stories: %v", err), nil, nil
+	}
+
+	if input.IncludeArchived {
+		stories = append(stories, s.collectArchivedStories(input.Epic)...)
 	}
 
 	// Apply filters.
@@ -784,10 +812,11 @@ func (s *Server) handleBlocked(_ context.Context, _ *mcp.CallToolRequest, _ any)
 	}
 
 	statusMap := buildStatusMap(allStories)
+	archivedSlugs := s.buildArchivedSlugSet()
 
 	var blocked []*models.Story
 	for _, st := range allStories {
-		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap) {
+		if len(st.BlockedBy) > 0 && !allBlockersDone(st.BlockedBy, statusMap, archivedSlugs) {
 			blocked = append(blocked, st)
 		}
 	}
@@ -1292,11 +1321,57 @@ func buildStatusMap(stories []*models.Story) map[string]string {
 	return m
 }
 
+// collectArchivedStories returns stories from all archived epics, optionally filtered by epic slug.
+func (s *Server) collectArchivedStories(epicFilter string) []*models.Story {
+	var result []*models.Story
+	archivedEpics, err := s.store.ListArchivedEpics()
+	if err != nil {
+		return result
+	}
+	for _, ep := range archivedEpics {
+		if epicFilter != "" && ep.Slug != epicFilter {
+			continue
+		}
+		archStories, stErr := s.store.ListArchivedStories(ep.Slug)
+		if stErr == nil {
+			result = append(result, archStories...)
+		}
+	}
+	return result
+}
+
+// buildArchivedSlugSet returns a set of story slugs from all archived epics.
+func (s *Server) buildArchivedSlugSet() map[string]bool {
+	slugs := make(map[string]bool)
+	archivedEpics, err := s.store.ListArchivedEpics()
+	if err != nil {
+		return slugs
+	}
+	for _, ep := range archivedEpics {
+		stories, stErr := s.store.ListArchivedStories(ep.Slug)
+		if stErr != nil {
+			continue
+		}
+		for _, st := range stories {
+			slugs[st.Slug] = true
+		}
+	}
+	return slugs
+}
+
 // allBlockersDone returns true if every slug in blockedBy maps to "done" status.
-func allBlockersDone(blockedBy []string, statusMap map[string]string) bool {
+// Stories not in the status map are checked against the archive — archived stories are treated as done.
+func allBlockersDone(blockedBy []string, statusMap map[string]string, archivedSlugs map[string]bool) bool {
 	for _, slug := range blockedBy {
 		status, ok := statusMap[slug]
-		if !ok || status != models.StoryStatusDone {
+		if ok {
+			if status != models.StoryStatusDone {
+				return false
+			}
+			continue
+		}
+		// Not in active stories — check archive.
+		if !archivedSlugs[slug] {
 			return false
 		}
 	}

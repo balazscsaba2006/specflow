@@ -11,6 +11,7 @@ specflow sits between the human (architect/PM/tech lead) and Claude Code (the AI
 3. **Progress tracking** -- status rollup across the full hierarchy
 4. **Verification support** -- plan-vs-implementation comparison data
 5. **Working style enforcement** -- behavioral instructions embedded in MCP tool descriptions
+6. **Epic archiving** -- move completed epics out of day-to-day workflows while preserving cross-references
 
 **Core principle:** specflow has zero AI logic. No API keys. No LLM calls. Claude Code IS the AI. specflow manages structured state and assembles context. All intelligence comes from Claude Code interacting through MCP tools.
 
@@ -235,11 +236,14 @@ All data lives in `.specflow/` as markdown with YAML frontmatter:
 +-- docs/                                # Project-level documents
 +-- decisions/                           # Decision log
 +-- executions/{story-slug}/
-    +-- latest/
-    |   +-- plan.md                      # Implementation plan (latest)
-    +-- {exec-id}/
-        +-- verification.md
-        +-- meta.yaml                    # Git refs, timestamps, status
+|   +-- latest/
+|   |   +-- plan.md                      # Implementation plan (latest)
+|   +-- {exec-id}/
+|       +-- verification.md
+|       +-- meta.yaml                    # Git refs, timestamps, status
++-- archive/                             # Archived (completed) epics
+    +-- epics/{slug}/                    # Compacted epic + stories + docs
+    +-- executions/{story-slug}/         # Moved execution data
 ```
 
 All artifacts use the same format: YAML frontmatter for structured metadata, markdown body for human-written content. IDs are ULID-based (time-sortable) with type prefixes (`i_`, `e_`, `s_`, `d_`, `dec_`, `p_`, `x_`, `v_`).

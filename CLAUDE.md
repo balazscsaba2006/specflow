@@ -49,6 +49,7 @@ When I share code for review:
 - Assume I know Go fundamentals — teach me what I don't know I don't know
 - When I'm prototyping, match my pace — skip ceremony
 - When I'm building the MCP server (user-facing), slow me down if I'm rushing
+- **Always update README and relevant documentation** (CLI reference, architecture docs) as the last step of every implementation plan, if the changes affect user-facing behavior, commands, storage format, or MCP tools
 
 ---
 
@@ -187,12 +188,18 @@ All artifacts use YAML frontmatter separated by `---` + markdown body:
 ├── stories/                                 # Standalone stories (no epic)
 ├── docs/                                    # Project-level docs
 ├── decisions/                               # Lightweight decision log
-└── executions/                              # Flat, referenced by story ID
-    └── {story-slug}/
-        └── {exec-id}/
-            ├── plan.md
-            ├── verification.md
-            └── meta.yaml
+├── executions/                              # Flat, referenced by story ID
+│   └── {story-slug}/
+│       └── {exec-id}/
+│           ├── plan.md
+│           ├── verification.md
+│           └── meta.yaml
+└── archive/                                 # Archived (completed) epics
+    ├── epics/{slug}/                        # Compacted frontmatter-only tombstones
+    │   ├── epic.md
+    │   ├── docs/                            # Docs preserved as-is
+    │   └── stories/
+    └── executions/{story-slug}/             # Moved execution data
 ```
 
 ---

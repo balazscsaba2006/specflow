@@ -10,22 +10,27 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "status [slug]",
 		Short: "Show project or entity status",
 		Long: `Without arguments, shows an aggregate status rollup across all epics and stories.
 With a slug argument, auto-detects the entity type (initiative, epic, or story) and shows its detail.`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				return showEntityStatus(args[0])
 			}
-			return showProjectStatus()
+			includeArchived, _ := cmd.Flags().GetBool("include-archived")
+			return showProjectStatus(includeArchived)
 		},
 	}
+
+	cmd.Flags().Bool("include-archived", false, "Include archived epics in status")
+
+	return cmd
 }
 
-func showProjectStatus() error {
+func showProjectStatus(includeArchived bool) error {
 	epics, err := appStore.ListEpics()
 	if err != nil {
 		return err
@@ -93,7 +98,55 @@ func showProjectStatus() error {
 		fmt.Printf("\n%s  %d total, %d done  %s\n", ui.Label("Standalone:"), len(standalone), standaloneDone, ui.ProgressBar(standaloneDone, len(standalone), 15))
 	}
 
+	if includeArchived {
+		printArchivedStatus()
+	}
+
 	return nil
+}
+
+func printArchivedStatus() {
+	archivedEpics, err := appStore.ListArchivedEpics()
+	if err != nil || len(archivedEpics) == 0 {
+		return
+	}
+
+	fmt.Printf("\n%s\n\n", ui.Header("Archived"))
+
+	headers := []string{"EPIC", "STATUS", "STORIES"}
+	rows := make([][]string, 0, len(archivedEpics))
+	for _, e := range archivedEpics {
+		archStories, stErr := appStore.ListArchivedStories(e.Slug)
+		storyCount := 0
+		if stErr == nil {
+			storyCount = len(archStories)
+		}
+		rows = append(rows, []string{
+			e.Slug,
+			ui.StatusBadge(e.Status),
+			fmt.Sprintf("%d", storyCount),
+		})
+	}
+	printTable(headers, rows)
+}
+
+// collectArchivedStories returns stories from archived epics, optionally filtered by epic slug.
+func collectArchivedStories(epicFilter string) []*models.Story {
+	var result []*models.Story
+	archivedEpics, err := appStore.ListArchivedEpics()
+	if err != nil {
+		return result
+	}
+	for _, ep := range archivedEpics {
+		if epicFilter != "" && ep.Slug != epicFilter {
+			continue
+		}
+		archStories, stErr := appStore.ListArchivedStories(ep.Slug)
+		if stErr == nil {
+			result = append(result, archStories...)
+		}
+	}
+	return result
 }
 
 func showEntityStatus(slug string) error {

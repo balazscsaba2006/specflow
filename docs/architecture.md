@@ -171,12 +171,24 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 |   +-- 001-use-go-for-cli.md
 |   +-- 002-filesystem-over-sqlite.md
 +-- executions/                              # Flat, indexed by story slug
-    +-- {story-slug}/
-        +-- latest/
-        |   +-- plan.md                      # Implementation plan (latest)
-        +-- {exec-id}/
-            +-- verification.md              # Verification findings
-            +-- meta.yaml                    # Git refs, timestamps, status
+|   +-- {story-slug}/
+|       +-- latest/
+|       |   +-- plan.md                      # Implementation plan (latest)
+|       +-- {exec-id}/
+|           +-- verification.md              # Verification findings
+|           +-- meta.yaml                    # Git refs, timestamps, status
++-- archive/                                 # Archived (completed) epics
+    +-- epics/
+    |   +-- {slug}/
+    |       +-- epic.md                      # Compacted (frontmatter-only)
+    |       +-- docs/                        # Docs preserved as-is
+    |       +-- stories/
+    |           +-- {story-slug}.md          # Compacted (frontmatter-only)
+    +-- executions/
+        +-- {story-slug}/
+            +-- {exec-id}/
+                +-- verification.md
+                +-- meta.yaml
 ```
 
 ### Path Resolution (store.go)
@@ -466,3 +478,14 @@ Executions are indexed by story slug under a top-level `executions/` directory, 
 - Stories can move between epics without breaking execution references.
 - A story can have multiple execution attempts, each with its own plan, verification, and git refs.
 - Trade-off: requires a lookup by story slug rather than browsing within an epic directory.
+
+### Epic Archiving
+
+Completed epics can be archived to `.specflow/archive/`. Archiving moves files out of day-to-day directories and compacts them.
+
+- **Filesystem separation**: archived epics are excluded from all default listings (CLI and MCP) without filtering logic. Standard `ListEpics()` / `ListStories()` only read active directories.
+- **Body compaction**: story and epic files in the archive are reduced to frontmatter-only tombstones. The markdown body is stripped. This is lossy but git preserves the full content in history.
+- **Docs preserved**: epic-scoped documents are moved as-is (no compaction) since they may be referenced by future stories via `doc_refs`.
+- **Cross-reference resolution**: `sf_context_build`, `sf_story_next`, and `sf_blocked` fall back to archived epics when resolving blocker references, story lookups, and doc refs. This ensures stories that reference archived predecessors continue to work.
+- **Opt-in visibility**: `--include-archived` (CLI) and `include_archived` (MCP) flags allow listing archived epics and their stories when needed.
+- **Trade-off**: archiving is a one-way operation at the filesystem level. Restoring requires manual file moves or git checkout. Acceptable since archiving implies the work is fully complete.
