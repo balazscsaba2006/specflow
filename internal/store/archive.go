@@ -248,3 +248,102 @@ func (s *Store) ListArchivedStories(epicSlug string) ([]*models.Story, error) {
 func (s *Store) archiveStoryFile(epicSlug, storySlug string) string {
 	return fmt.Sprintf("%s/%s.md", s.ArchiveEpicStoriesDir(epicSlug), storySlug)
 }
+
+// StoryArchiveSummary reports what was moved during a standalone story archive.
+type StoryArchiveSummary struct {
+	Slug           string
+	Title          string
+	ExecutionCount int
+}
+
+// ArchiveStory moves a standalone story and its executions to the archive.
+// If force is false, the story must have status done.
+func (s *Store) ArchiveStory(slug string, force bool) (*StoryArchiveSummary, error) {
+	if s.IsStoryArchived(slug) {
+		return nil, fmt.Errorf("story %q is already archived", slug)
+	}
+
+	st, err := s.LoadStory(slug, "")
+	if err != nil {
+		return nil, fmt.Errorf("loading story: %w", err)
+	}
+	if st.Epic != "" {
+		return nil, fmt.Errorf("story %q belongs to epic %q — archive the epic instead", slug, st.Epic)
+	}
+	if !force && st.Status != models.StoryStatusDone {
+		return nil, fmt.Errorf(
+			"story %q has status %q (expected %q); use force to override",
+			slug, st.Status, models.StoryStatusDone,
+		)
+	}
+
+	if err := s.EnsureDir(s.ArchiveStoriesDir()); err != nil {
+		return nil, fmt.Errorf("creating archive stories dir: %w", err)
+	}
+
+	// Compact and write to archive.
+	st.Body = ""
+	dst := s.ArchiveStandaloneStoryFile(slug)
+	if err := WriteFile(dst, st, ""); err != nil {
+		return nil, fmt.Errorf("compacting story %q: %w", slug, err)
+	}
+
+	// Move executions.
+	summary := &StoryArchiveSummary{Slug: slug, Title: st.Title}
+	execCount, execErr := s.archiveExecutions([]*models.Story{st})
+	if execErr != nil {
+		return nil, execErr
+	}
+	summary.ExecutionCount = execCount
+
+	// Remove original.
+	if err := os.Remove(s.StoryFile(slug, "")); err != nil {
+		return nil, fmt.Errorf("removing original story file: %w", err)
+	}
+
+	return summary, nil
+}
+
+// IsStoryArchived reports whether a standalone story exists in the archive.
+func (s *Store) IsStoryArchived(slug string) bool {
+	_, err := os.Stat(s.ArchiveStandaloneStoryFile(slug))
+	return err == nil
+}
+
+// LoadArchivedStandaloneStory reads a standalone story from the archive.
+func (s *Store) LoadArchivedStandaloneStory(slug string) (*models.Story, error) {
+	path := s.ArchiveStandaloneStoryFile(slug)
+	var st models.Story
+	body, err := ParseFile(path, &st)
+	if err != nil {
+		return nil, fmt.Errorf("loading archived story %q: %w", slug, err)
+	}
+	st.Body = body
+	return &st, nil
+}
+
+// ListArchivedStandaloneStories returns all standalone stories in the archive.
+func (s *Store) ListArchivedStandaloneStories() ([]*models.Story, error) {
+	dir := s.ArchiveStoriesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading archived stories directory: %w", err)
+	}
+
+	var stories []*models.Story
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		slug := strings.TrimSuffix(entry.Name(), ".md")
+		st, loadErr := s.LoadArchivedStandaloneStory(slug)
+		if loadErr != nil {
+			return nil, fmt.Errorf("listing archived standalone stories: %w", loadErr)
+		}
+		stories = append(stories, st)
+	}
+	return stories, nil
+}

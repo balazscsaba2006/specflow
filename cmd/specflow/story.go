@@ -37,6 +37,7 @@ func newStoryCmd() *cobra.Command {
 	cmd.AddCommand(newStoryEditCmd())
 	cmd.AddCommand(newStorySetCmd())
 	cmd.AddCommand(newStoryNextCmd())
+	cmd.AddCommand(newStoryArchiveCmd())
 
 	return cmd
 }
@@ -376,6 +377,32 @@ func newStoryNextCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String("epic", "", "Scope to a specific epic")
+
+	return cmd
+}
+
+func newStoryArchiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "archive <slug>",
+		Short: "Archive a standalone story (move to archive, compact file)",
+		Long:  "Moves a standalone story to .specflow/archive/stories/, compacts to frontmatter-only tombstone, and moves execution directories.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slug := args[0]
+			force, _ := cmd.Flags().GetBool("force")
+
+			summary, err := appStore.ArchiveStory(slug, force)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Archived story %q (%d executions moved)\n",
+				summary.Title, summary.ExecutionCount)
+			return nil
+		},
+	}
+
+	cmd.Flags().Bool("force", false, "Archive even if story isn't in done status")
 
 	return cmd
 }

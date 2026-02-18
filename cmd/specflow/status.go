@@ -106,44 +106,58 @@ func showProjectStatus(includeArchived bool) error {
 }
 
 func printArchivedStatus() {
-	archivedEpics, err := appStore.ListArchivedEpics()
-	if err != nil || len(archivedEpics) == 0 {
+	archivedEpics, _ := appStore.ListArchivedEpics()
+	archivedStandalone, _ := appStore.ListArchivedStandaloneStories()
+
+	if len(archivedEpics) == 0 && len(archivedStandalone) == 0 {
 		return
 	}
 
 	fmt.Printf("\n%s\n\n", ui.Header("Archived"))
 
-	headers := []string{"EPIC", "STATUS", "STORIES"}
-	rows := make([][]string, 0, len(archivedEpics))
-	for _, e := range archivedEpics {
-		archStories, stErr := appStore.ListArchivedStories(e.Slug)
-		storyCount := 0
-		if stErr == nil {
-			storyCount = len(archStories)
+	if len(archivedEpics) > 0 {
+		headers := []string{"EPIC", "STATUS", "STORIES"}
+		rows := make([][]string, 0, len(archivedEpics))
+		for _, e := range archivedEpics {
+			archStories, stErr := appStore.ListArchivedStories(e.Slug)
+			storyCount := 0
+			if stErr == nil {
+				storyCount = len(archStories)
+			}
+			rows = append(rows, []string{
+				e.Slug,
+				ui.StatusBadge(e.Status),
+				fmt.Sprintf("%d", storyCount),
+			})
 		}
-		rows = append(rows, []string{
-			e.Slug,
-			ui.StatusBadge(e.Status),
-			fmt.Sprintf("%d", storyCount),
-		})
+		printTable(headers, rows)
 	}
-	printTable(headers, rows)
+
+	if len(archivedStandalone) > 0 {
+		fmt.Printf("\n%s  %d archived standalone stories\n", ui.Label("Standalone:"), len(archivedStandalone))
+	}
 }
 
-// collectArchivedStories returns stories from archived epics, optionally filtered by epic slug.
+// collectArchivedStories returns stories from archived epics and standalone archive, optionally filtered by epic slug.
 func collectArchivedStories(epicFilter string) []*models.Story {
 	var result []*models.Story
 	archivedEpics, err := appStore.ListArchivedEpics()
-	if err != nil {
-		return result
-	}
-	for _, ep := range archivedEpics {
-		if epicFilter != "" && ep.Slug != epicFilter {
-			continue
+	if err == nil {
+		for _, ep := range archivedEpics {
+			if epicFilter != "" && ep.Slug != epicFilter {
+				continue
+			}
+			archStories, stErr := appStore.ListArchivedStories(ep.Slug)
+			if stErr == nil {
+				result = append(result, archStories...)
+			}
 		}
-		archStories, stErr := appStore.ListArchivedStories(ep.Slug)
+	}
+	// Include archived standalone stories when no epic filter.
+	if epicFilter == "" {
+		standalone, stErr := appStore.ListArchivedStandaloneStories()
 		if stErr == nil {
-			result = append(result, archStories...)
+			result = append(result, standalone...)
 		}
 	}
 	return result

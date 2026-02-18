@@ -233,10 +233,12 @@ func (s *Server) handleStatus(_ context.Context, _ *mcp.CallToolRequest, input s
 	return textResult(b.String()), nil, nil
 }
 
-// writeArchivedStatus appends archived epic status blocks to the builder.
+// writeArchivedStatus appends archived epic and standalone story status blocks to the builder.
 func (s *Server) writeArchivedStatus(b *strings.Builder) {
-	archivedEpics, err := s.store.ListArchivedEpics()
-	if err != nil || len(archivedEpics) == 0 {
+	archivedEpics, _ := s.store.ListArchivedEpics()
+	archivedStandalone, _ := s.store.ListArchivedStandaloneStories()
+
+	if len(archivedEpics) == 0 && len(archivedStandalone) == 0 {
 		return
 	}
 	b.WriteString("\n## Archived\n\n")
@@ -246,6 +248,10 @@ func (s *Server) writeArchivedStatus(b *strings.Builder) {
 			continue
 		}
 		writeStatusBlock(b, ep.Title+" [archived]", archStories)
+		b.WriteString("\n")
+	}
+	if len(archivedStandalone) > 0 {
+		writeStatusBlock(b, "Standalone Stories [archived]", archivedStandalone)
 		b.WriteString("\n")
 	}
 }
@@ -1446,38 +1452,49 @@ func buildStatusMap(stories []*models.Story) map[string]string {
 	return m
 }
 
-// collectArchivedStories returns stories from all archived epics, optionally filtered by epic slug.
+// collectArchivedStories returns stories from all archived epics and standalone archive, optionally filtered by epic slug.
 func (s *Server) collectArchivedStories(epicFilter string) []*models.Story {
 	var result []*models.Story
 	archivedEpics, err := s.store.ListArchivedEpics()
-	if err != nil {
-		return result
-	}
-	for _, ep := range archivedEpics {
-		if epicFilter != "" && ep.Slug != epicFilter {
-			continue
+	if err == nil {
+		for _, ep := range archivedEpics {
+			if epicFilter != "" && ep.Slug != epicFilter {
+				continue
+			}
+			archStories, stErr := s.store.ListArchivedStories(ep.Slug)
+			if stErr == nil {
+				result = append(result, archStories...)
+			}
 		}
-		archStories, stErr := s.store.ListArchivedStories(ep.Slug)
+	}
+	// Include archived standalone stories when no epic filter.
+	if epicFilter == "" {
+		standalone, stErr := s.store.ListArchivedStandaloneStories()
 		if stErr == nil {
-			result = append(result, archStories...)
+			result = append(result, standalone...)
 		}
 	}
 	return result
 }
 
-// buildArchivedSlugSet returns a set of story slugs from all archived epics.
+// buildArchivedSlugSet returns a set of story slugs from all archived epics and standalone archive.
 func (s *Server) buildArchivedSlugSet() map[string]bool {
 	slugs := make(map[string]bool)
 	archivedEpics, err := s.store.ListArchivedEpics()
-	if err != nil {
-		return slugs
-	}
-	for _, ep := range archivedEpics {
-		stories, stErr := s.store.ListArchivedStories(ep.Slug)
-		if stErr != nil {
-			continue
+	if err == nil {
+		for _, ep := range archivedEpics {
+			stories, stErr := s.store.ListArchivedStories(ep.Slug)
+			if stErr != nil {
+				continue
+			}
+			for _, st := range stories {
+				slugs[st.Slug] = true
+			}
 		}
-		for _, st := range stories {
+	}
+	standalone, stErr := s.store.ListArchivedStandaloneStories()
+	if stErr == nil {
+		for _, st := range standalone {
 			slugs[st.Slug] = true
 		}
 	}

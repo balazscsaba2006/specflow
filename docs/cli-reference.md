@@ -443,6 +443,28 @@ Recommend the next story to work on. Filters to stories with status `planned` wh
 |------|------|---------|-------------|
 | `--epic` | string | `""` | Scope to a specific epic |
 
+### story archive
+
+```
+specflow story archive <slug> [flags]
+```
+
+Archive a standalone story. Moves the story file to `.specflow/archive/stories/`, compacts to a frontmatter-only tombstone (body stripped), and moves execution directories to `.specflow/archive/executions/`.
+
+By default, requires the story to have status `done`. Use `--force` to bypass. Only works on standalone stories (not epic-scoped).
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `slug` | yes | Slug of the standalone story to archive |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--force` | bool | `false` | Archive even if story isn't in done status |
+
 ---
 
 ## doc

@@ -161,6 +161,14 @@ func (s *Store) ArchiveEpicDocsDir(slug string) string {
 	return filepath.Join(s.ArchiveEpicDir(slug), "docs")
 }
 
+func (s *Store) ArchiveStoriesDir() string {
+	return filepath.Join(s.ArchiveDir(), "stories")
+}
+
+func (s *Store) ArchiveStandaloneStoryFile(slug string) string {
+	return filepath.Join(s.ArchiveStoriesDir(), slug+".md")
+}
+
 func (s *Store) ArchiveExecutionsDir() string {
 	return filepath.Join(s.ArchiveDir(), "executions")
 }
