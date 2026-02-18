@@ -35,7 +35,7 @@ func newInitiativeNewCmd() *cobra.Command {
 		Use:   "new <slug>",
 		Short: "Create a new initiative",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			if err := models.ValidateSlug(slug); err != nil {
 				return err
@@ -46,7 +46,7 @@ func newInitiativeNewCmd() *cobra.Command {
 				return fmt.Errorf("loading template: %w", err)
 			}
 
-			edited, err := openInEditor(tmpl)
+			edited, err := getContent(cmd, tmpl)
 			if err != nil {
 				return fmt.Errorf("editing initiative: %w", err)
 			}
@@ -130,7 +130,7 @@ func newInitiativeShowCmd() *cobra.Command {
 				}
 			}
 			if i.Body != "" {
-				fmt.Printf("\n%s\n", i.Body)
+				fmt.Print(ui.RenderMarkdown(i.Body))
 			}
 
 			return nil
@@ -143,7 +143,7 @@ func newInitiativeEditCmd() *cobra.Command {
 		Use:   "edit <slug>",
 		Short: "Edit an initiative in $EDITOR",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 
 			i, err := appStore.LoadInitiative(slug)
@@ -156,7 +156,7 @@ func newInitiativeEditCmd() *cobra.Command {
 				return fmt.Errorf("marshaling initiative: %w", err)
 			}
 
-			edited, err := openInEditor(string(data))
+			edited, err := getContent(cmd, string(data))
 			if err != nil {
 				return fmt.Errorf("editing initiative: %w", err)
 			}

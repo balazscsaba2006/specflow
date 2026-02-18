@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,19 +18,33 @@ var nonSlugChars = regexp.MustCompile(`[^a-z0-9-]+`)
 
 func newImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "import <file>",
-		Short: "Import an existing markdown file as a specflow artifact",
+		Use:   "import [file]",
+		Short: "Import an existing markdown file or GitHub issue as a specflow artifact",
 		Long: `Reads a markdown file and imports it into the specflow project.
 
 If the file has YAML frontmatter, its fields are used.
 If not, metadata is generated from the filename.
 
 The --type flag determines the artifact type:
-  story (default), doc, epic, initiative, decision`,
-		Args: cobra.ExactArgs(1),
+  story (default), doc, epic, initiative, decision
+
+Use --github to import from a GitHub issue:
+  specflow import --github owner/repo#123
+  specflow import --github https://github.com/owner/repo/issues/123`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			filePath := args[0]
 			epicSlug, _ := cmd.Flags().GetString("epic")
+			ghRef, _ := cmd.Flags().GetString("github")
+
+			if ghRef != "" {
+				return importGitHubIssue(ghRef, epicSlug)
+			}
+
+			if len(args) == 0 {
+				return fmt.Errorf("either a file path or --github flag is required")
+			}
+
+			filePath := args[0]
 			entityType, _ := cmd.Flags().GetString("type")
 
 			data, err := os.ReadFile(filePath) //nolint:gosec // user-provided path is intentional
@@ -60,6 +76,7 @@ The --type flag determines the artifact type:
 
 	cmd.Flags().String("type", "story", "Artifact type: story, doc, epic, initiative, decision")
 	cmd.Flags().String("epic", "", "Parent epic slug (for stories and docs)")
+	cmd.Flags().String("github", "", "GitHub issue reference (owner/repo#123 or full URL)")
 
 	return cmd
 }
@@ -170,4 +187,95 @@ func importDecision(data []byte, slug string) error {
 	}
 	fmt.Printf("Imported decision %q (%s)\n", d.Title, d.Slug)
 	return nil
+}
+
+// ghIssueURLRegexp matches GitHub issue URLs like https://github.com/owner/repo/issues/123
+var ghIssueURLRegexp = regexp.MustCompile(`github\.com/([^/]+/[^/]+)/issues/(\d+)`)
+
+// ghIssueRefRegexp matches owner/repo#123 format.
+var ghIssueRefRegexp = regexp.MustCompile(`^([^#]+)#(\d+)$`)
+
+// ghIssue holds the JSON fields we need from gh issue view.
+type ghIssue struct {
+	Title  string `json:"title"`
+	Body   string `json:"body"`
+	Number int    `json:"number"`
+	Labels []struct {
+		Name string `json:"name"`
+	} `json:"labels"`
+	URL string `json:"url"`
+}
+
+func importGitHubIssue(ref, epicSlug string) error {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return fmt.Errorf("gh CLI is required for GitHub import but was not found in PATH.\nInstall it: https://cli.github.com")
+	}
+
+	// Normalize ref to owner/repo#number format for gh CLI.
+	issueRef := normalizeGitHubRef(ref)
+	if issueRef == "" {
+		return fmt.Errorf("invalid GitHub issue reference %q: use owner/repo#123 or a full issue URL", ref)
+	}
+
+	// Parse repo and number for the gh command.
+	parts := ghIssueRefRegexp.FindStringSubmatch(issueRef)
+	if parts == nil {
+		return fmt.Errorf("could not parse issue reference %q", issueRef)
+	}
+	repo, number := parts[1], parts[2]
+
+	out, err := exec.Command("gh", "issue", "view", number, "--repo", repo, "--json", "title,body,number,labels,url").Output() //nolint:gosec // user-provided repo/number is intentional
+	if err != nil {
+		return fmt.Errorf("fetching GitHub issue: %w\nMake sure you're authenticated with: gh auth login", err)
+	}
+
+	var issue ghIssue
+	if err := json.Unmarshal(out, &issue); err != nil {
+		return fmt.Errorf("parsing GitHub issue response: %w", err)
+	}
+
+	// Build slug from title.
+	slug := slugFromFilename(issue.Title + ".md")
+	if err := models.ValidateSlug(slug); err != nil {
+		// Fall back to repo-number format.
+		slug = slugFromFilename(fmt.Sprintf("%s-%d.md", strings.ReplaceAll(repo, "/", "-"), issue.Number))
+	}
+
+	// Map labels.
+	var labels []string
+	for _, l := range issue.Labels {
+		labels = append(labels, l.Name)
+	}
+
+	body := issue.Body
+	if issue.URL != "" {
+		body = fmt.Sprintf("Imported from: %s\n\n%s", issue.URL, body)
+	}
+
+	st := &models.Story{
+		Slug:   slug,
+		Title:  issue.Title,
+		Epic:   epicSlug,
+		Labels: labels,
+		Body:   body,
+	}
+
+	if err := appStore.CreateStory(st); err != nil {
+		return err
+	}
+
+	fmt.Printf("Imported GitHub issue #%d as story %q (%s)\n", issue.Number, st.Title, st.Slug)
+	return nil
+}
+
+func normalizeGitHubRef(ref string) string {
+	// Try URL format first.
+	if m := ghIssueURLRegexp.FindStringSubmatch(ref); m != nil {
+		return m[1] + "#" + m[2]
+	}
+	// Try owner/repo#number format.
+	if ghIssueRefRegexp.MatchString(ref) {
+		return ref
+	}
+	return ""
 }

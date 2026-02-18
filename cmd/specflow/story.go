@@ -55,7 +55,7 @@ func newStoryNewCmd() *cobra.Command {
 				tmpl = strings.Replace(tmpl, `epic: ""`, fmt.Sprintf("epic: %q", epicSlug), 1)
 			}
 
-			edited, err := openInEditor(tmpl)
+			edited, err := getContent(cmd, tmpl)
 			if err != nil {
 				return fmt.Errorf("editing story: %w", err)
 			}
@@ -205,7 +205,7 @@ func newStoryShowCmd() *cobra.Command {
 				}
 			}
 			if st.Body != "" {
-				fmt.Printf("\n%s\n", st.Body)
+				fmt.Print(ui.RenderMarkdown(st.Body))
 			}
 
 			return nil
@@ -236,7 +236,7 @@ func newStoryEditCmd() *cobra.Command {
 				return fmt.Errorf("marshaling story: %w", err)
 			}
 
-			edited, err := openInEditor(string(data))
+			edited, err := getContent(cmd, string(data))
 			if err != nil {
 				return fmt.Errorf("editing story: %w", err)
 			}

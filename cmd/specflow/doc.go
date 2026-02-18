@@ -57,7 +57,7 @@ func newDocNewCmd() *cobra.Command {
 				tmpl = strings.Replace(tmpl, `epic: ""`, fmt.Sprintf("epic: %q", epicSlug), 1)
 			}
 
-			edited, err := openInEditor(tmpl)
+			edited, err := getContent(cmd, tmpl)
 			if err != nil {
 				return fmt.Errorf("editing doc: %w", err)
 			}
@@ -155,7 +155,7 @@ func newDocShowCmd() *cobra.Command {
 				}
 			}
 			if d.Body != "" {
-				fmt.Printf("\n%s\n", d.Body)
+				fmt.Print(ui.RenderMarkdown(d.Body))
 			}
 
 			return nil
@@ -186,7 +186,7 @@ func newDocEditCmd() *cobra.Command {
 				return fmt.Errorf("marshaling doc: %w", err)
 			}
 
-			edited, err := openInEditor(string(data))
+			edited, err := getContent(cmd, string(data))
 			if err != nil {
 				return fmt.Errorf("editing doc: %w", err)
 			}

@@ -13,58 +13,118 @@ import (
 // registerWriteTools registers all write/mutation MCP tools on the server.
 func (s *Server) registerWriteTools() {
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_initiative_create",
-		Description: "Create a new initiative. An initiative is a top-level goal that groups epics.",
+		Name: "sf_initiative_create",
+		Description: `Create a new initiative. An initiative is a top-level goal that groups epics.
+
+Before creating, challenge the scope:
+- Is this actually one initiative or multiple?
+- What's the success criteria? If you can't measure it, push back.
+- What happens if this takes 3x longer than expected?
+- What's the minimum viable version?
+- What dependencies does this create across the project?
+
+Ask these questions conversationally before writing the initiative. Be direct, not diplomatic. If the scope is too vague, say so.`,
 	}, s.handleInitiativeCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_epic_create",
-		Description: "Create a new epic. An epic groups related stories under an optional initiative.",
+		Name: "sf_epic_create",
+		Description: `Create a new epic. An epic groups related stories under an optional initiative.
+
+Before creating:
+- Does this epic have a clear boundary? Where does it end?
+- What's the failure mode if we ship half of this?
+- Is this over-engineered for current needs or under-engineered for where we're heading?
+- Flag architectural implications the user might be overlooking.
+- If there are multiple valid approaches, present options with trade-offs.
+
+An epic should be shippable independently. If it's not, it might need to be split or reconsidered.`,
 	}, s.handleEpicCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_story_create",
-		Description: "Create a new story. A story is the primary unit of work with acceptance criteria.",
+		Name: "sf_story_create",
+		Description: `Create a new story. A story is the primary unit of work with acceptance criteria.
+
+Before creating:
+- Is this actually one story or should it be split?
+- Are the acceptance criteria specific and testable?
+- Does this story have clear "done" criteria?
+- If the acceptance criteria need a paragraph to explain, the story is too big.
+
+Stories can be standalone, under an epic, or under an initiative>epic. Require: title, acceptance criteria. Everything else is optional.`,
 	}, s.handleStoryCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_story_update",
-		Description: "Update an existing story's status, priority, labels, blocked_by, assumptions, or open_questions. Only provided fields are updated. Assumptions and open_questions are appended to existing values.",
+		Name: "sf_story_update",
+		Description: `Update an existing story's status, priority, labels, blocked_by, assumptions, or open_questions. Only provided fields are updated. Assumptions and open_questions are appended to existing values. Validates state transitions (e.g., can't go from draft to done directly).`,
 	}, s.handleStoryUpdate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_doc_write",
-		Description: "Create or update a document. If a doc with the given slug exists, it is updated; otherwise a new doc is created.",
+		Name: "sf_doc_write",
+		Description: `Create or update a document. If a doc with the given slug exists, it is updated; otherwise a new doc is created.
+
+When creating a PRD:
+- Start with the PROBLEM, not the solution. Push back if the user jumps to solutions.
+- Success metrics must be measurable. "Improve UX" is not a metric.
+- The "What If" section is mandatory — what breaks if requirements change?
+- Open questions are a feature, not a bug. Capture what you don't know.
+- Challenge scope: is this MVP or gold-plating?
+- Flag risks the user hasn't mentioned.
+
+When creating a tech spec:
+- Ask the hard questions: What at 10x scale? Failure mode? Migration path?
+- Flag when a pattern choice has non-obvious downstream consequences.
+- Constraints section must be explicit — implicit constraints cause drift.
+
+Act as a CPO/principal engineer reviewing the document. Be direct about gaps.`,
 	}, s.handleDocWrite)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_decision_record",
-		Description: "Record an architectural or design decision. The body is assembled from context, decision, and consequences sections.",
+		Name: "sf_decision_record",
+		Description: `Record an architectural or design decision. The body is assembled from context, decision, and consequences sections.
+
+Use this when a choice has been made during planning or implementation that future work should know about. Keep decisions concise.`,
 	}, s.handleDecisionRecord)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_plan_save",
-		Description: "Save an implementation plan for a story. Plans are markdown documents describing how to implement a story.",
+		Name: "sf_plan_save",
+		Description: `Save an implementation plan for a story. Plans are markdown documents describing how to implement a story.
+
+Captures current git ref as baseline. Plans should include file-level detail: which files to create/modify, what pattern to follow, and reference files for each step.`,
 	}, s.handlePlanSave)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_execution_start",
-		Description: "Start a new execution for a story. Captures current git ref as baseline, creates an execution record, and sets story status to in_progress.",
+		Name: "sf_execution_start",
+		Description: `Start a new execution for a story. Captures current git ref as baseline, creates an execution record, and sets story status to in_progress.
+
+Call this BEFORE starting to implement a story.`,
 	}, s.handleExecutionStart)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_execution_complete",
-		Description: "Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them. Provide story slug to avoid scanning all stories.",
+		Name: "sf_execution_complete",
+		Description: `Mark an execution as completed. Captures current git ref, computes file changes since execution start, and records them. Provide story slug to avoid scanning all stories.
+
+Call this AFTER finishing implementation (code written, tests run).`,
 	}, s.handleExecutionComplete)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_verify_save",
-		Description: "Save verification results for a story's latest execution. Records pass/fail/partial result with findings and acceptance checks.",
+		Name: "sf_verify_save",
+		Description: `Save verification results for a story's latest execution. Records pass/fail/partial result with findings and acceptance checks.
+
+Verification should check:
+- Were all acceptance criteria met?
+- Were all planned files actually touched?
+- Were any unexpected files modified?
+- Are there assumptions baked in that should be documented?
+- What will break if requirements change? (the "what if" list)
+
+Be a principal engineer — direct, not diplomatic. If something is fine but the user would regret it in 6 months, flag it now.
+
+Category values: missing | bug | performance | security | clarity | quality`,
 	}, s.handleVerifySave)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
-		Name:        "sf_question_resolve",
-		Description: "Resolve an open question on any entity (initiative, epic, story, or doc) by removing it from open_questions.",
+		Name: "sf_question_resolve",
+		Description: `Resolve an open question on any entity (initiative, epic, story, or doc) by removing it from open_questions. Records the resolution in the activity log.`,
 	}, s.handleQuestionResolve)
 }
 
@@ -409,7 +469,11 @@ func (s *Server) handlePlanSave(_ context.Context, _ *mcp.CallToolRequest, input
 
 	status := input.Status
 	if status == "" {
-		status = models.PlanStatusDraft
+		if s.cfg.Mode == "fast" {
+			status = models.PlanStatusApproved
+		} else {
+			status = models.PlanStatusDraft
+		}
 	}
 
 	gitRef, _ := git.CurrentRef() // best-effort; non-fatal if not in a git repo

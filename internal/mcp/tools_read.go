@@ -172,6 +172,11 @@ func (s *Server) registerReadTools() {
 		Name:        "sf_diff_check",
 		Description: "Detects drift between specs and their stories. Checks if documents were updated more recently than stories that reference them, indicating potential drift.",
 	}, s.handleDiffCheck)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_code_review",
+		Description: "Assembles a structured code review prompt for a story's latest execution. Loads the execution diff, story acceptance criteria, and implementation plan into a review template that checks: criteria met, planned files touched, unexpected changes, security issues, test coverage.",
+	}, s.handleCodeReview)
 }
 
 // --- Handlers ---
@@ -303,6 +308,7 @@ func (s *Server) handleEpicShow(_ context.Context, _ *mcp.CallToolRequest, input
 	}
 
 	writeEpicPhases(&b, epic.Phases, stories)
+	writeMermaidDiagram(&b, epic.Phases, stories)
 
 	if len(stories) > 0 {
 		b.WriteString("\n### Stories\n")
@@ -342,6 +348,59 @@ func writeEpicPhases(b *strings.Builder, phases []models.Phase, stories []*model
 			fmt.Fprintf(b, "- %s [%s]\n", slug, status)
 		}
 	}
+}
+
+// writeMermaidDiagram appends a Mermaid flowchart showing phases and story statuses.
+func writeMermaidDiagram(b *strings.Builder, phases []models.Phase, stories []*models.Story) {
+	if len(phases) == 0 {
+		return
+	}
+
+	storyStatus := make(map[string]string, len(stories))
+	for _, st := range stories {
+		storyStatus[st.Slug] = st.Status
+	}
+
+	b.WriteString("\n### Phase Diagram\n\n```mermaid\nflowchart LR\n")
+
+	// Style classes for status colors.
+	b.WriteString("    classDef done fill:#2ea44f,color:#fff\n")
+	b.WriteString("    classDef in_progress fill:#dbab09,color:#000\n")
+	b.WriteString("    classDef planned fill:#8b949e,color:#fff\n")
+	b.WriteString("    classDef draft fill:#8b949e,color:#fff\n")
+	b.WriteString("    classDef blocked fill:#f85149,color:#fff\n")
+
+	// Emit subgraphs per phase.
+	for i, phase := range phases {
+		fmt.Fprintf(b, "    subgraph P%d[\"%s\"]\n", i, phase.Label)
+		for _, slug := range phase.Stories {
+			status := storyStatus[slug]
+			if status == "" {
+				status = "planned"
+			}
+			// Use slug as node ID, display slug + status.
+			nodeID := mermaidNodeID(slug)
+			fmt.Fprintf(b, "        %s[\"%s\\n[%s]\"]\n", nodeID, slug, status)
+			fmt.Fprintf(b, "        class %s %s\n", nodeID, status)
+		}
+		b.WriteString("    end\n")
+	}
+
+	// Connect phases sequentially.
+	for i := 0; i < len(phases)-1; i++ {
+		if len(phases[i].Stories) > 0 && len(phases[i+1].Stories) > 0 {
+			from := mermaidNodeID(phases[i].Stories[len(phases[i].Stories)-1])
+			to := mermaidNodeID(phases[i+1].Stories[0])
+			fmt.Fprintf(b, "    %s --> %s\n", from, to)
+		}
+	}
+
+	b.WriteString("```\n")
+}
+
+// mermaidNodeID converts a slug to a valid Mermaid node identifier by replacing hyphens.
+func mermaidNodeID(slug string) string {
+	return strings.ReplaceAll(slug, "-", "_")
 }
 
 // writeStringSection writes a titled markdown section of string items.
@@ -994,6 +1053,59 @@ func (s *Server) handleReviewPrompt(_ context.Context, _ *mcp.CallToolRequest, i
 	} else {
 		prompt = strings.ReplaceAll(prompt, "{{doc_content}}", doc.Body)
 	}
+
+	return textResult(prompt), nil, nil
+}
+
+func (s *Server) handleCodeReview(_ context.Context, _ *mcp.CallToolRequest, input storyRefInput) (*mcp.CallToolResult, any, error) {
+	if input.Story == "" {
+		return errResult("story is required"), nil, nil
+	}
+
+	// Load story for acceptance criteria.
+	story, err := s.findStory(input.Story)
+	if err != nil {
+		return errResultf("finding story: %v", err), nil, nil
+	}
+
+	// Load latest execution for the diff.
+	latest, err := s.store.LatestExecution(input.Story)
+	if err != nil {
+		return errResultf("no execution found for story %q: %v", input.Story, err), nil, nil
+	}
+
+	// Build acceptance criteria text.
+	var acText strings.Builder
+	for _, ac := range story.Acceptance {
+		fmt.Fprintf(&acText, "- [ ] %s\n", ac)
+	}
+	if acText.Len() == 0 {
+		acText.WriteString("(none specified)\n")
+	}
+
+	// Load plan if available.
+	planContent := "(no plan exists)"
+	if plan, planErr := s.store.LoadPlan(input.Story); planErr == nil {
+		planContent = plan.Body
+	}
+
+	// Get diff.
+	diffContent := "(no diff available)"
+	if latest.GitRefBefore != "" {
+		to := "HEAD"
+		if latest.GitRefAfter != "" {
+			to = latest.GitRefAfter
+		}
+		if d, diffErr := git.Diff(latest.GitRefBefore, to); diffErr == nil && d != "" {
+			diffContent = d
+		}
+	}
+
+	// Assemble the review prompt.
+	prompt := hardq.CodeReviewPrompt
+	prompt = strings.ReplaceAll(prompt, "{{acceptance_criteria}}", acText.String())
+	prompt = strings.ReplaceAll(prompt, "{{plan_content}}", planContent)
+	prompt = strings.ReplaceAll(prompt, "{{diff_content}}", diffContent)
 
 	return textResult(prompt), nil, nil
 }

@@ -80,11 +80,15 @@ func LoadGlobal() (GlobalConfig, error) {
 		return gc, fmt.Errorf("reading global config: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, &gc); err != nil {
+	if err := parseGlobalConfig(data, &gc); err != nil {
 		return gc, fmt.Errorf("parsing global config: %w", err)
 	}
 
 	return gc, nil
+}
+
+func parseGlobalConfig(data []byte, gc *GlobalConfig) error {
+	return yaml.Unmarshal(data, gc)
 }
 
 // Get retrieves a config value by key name.

@@ -50,7 +50,13 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newUpdateCmd())
 	cmd.AddCommand(newSyncCmd())
 	cmd.AddCommand(newTemplateCmd())
+	cmd.AddCommand(newContextCmd())
+	cmd.AddCommand(newHandoffCmd())
+	cmd.AddCommand(newScopeCheckCmd())
+	cmd.AddCommand(newDiffCheckCmd())
 	cmd.AddCommand(newMCPCmd())
+
+	cmd.PersistentFlags().String("file", "", "Read content from file instead of opening $EDITOR")
 
 	return cmd
 }

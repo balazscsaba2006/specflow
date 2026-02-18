@@ -144,6 +144,32 @@ Don't nitpick formatting. If something is fine but fragile, flag it.
 {{doc_content}}`,
 }
 
+// CodeReviewPrompt is the template for structured code review against a story's
+// acceptance criteria and plan. Contains placeholders: {{acceptance_criteria}},
+// {{plan_content}}, {{diff_content}}.
+const CodeReviewPrompt = `Review the following code changes as a principal engineer.
+
+## Acceptance Criteria
+{{acceptance_criteria}}
+
+## Implementation Plan
+{{plan_content}}
+
+## Code Diff
+{{diff_content}}
+
+## Review Checklist
+Check each of these:
+1. **Acceptance criteria** — Were all criteria met? Flag any that are missing or partially met.
+2. **Planned files** — Were all planned files touched? Were any unexpected files modified?
+3. **Security** — Any injection risks, hardcoded secrets, unsafe operations?
+4. **Test coverage** — Are the changes tested? What's missing?
+5. **Edge cases** — What inputs or states would break this?
+6. **Assumptions** — What assumptions are baked in that should be documented?
+7. **What if** — What will break if requirements change?
+
+Be direct, not diplomatic. If something works now but will cause regret in 6 months, flag it.`
+
 // DecomposePrompt is the template for story decomposition from a spec.
 // Contains a {{spec_content}} placeholder.
 const DecomposePrompt = `Decompose the following spec into implementable stories.

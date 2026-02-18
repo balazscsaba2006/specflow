@@ -38,8 +38,13 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("creating directory structure: %w", err)
 			}
 
-			// Write default config.
+			// Write default config, respecting global default_mode if set.
 			cfg := config.DefaultConfig()
+			if gc, err := config.LoadGlobal(); err == nil && gc.DefaultMode != "" {
+				if gc.DefaultMode == "careful" || gc.DefaultMode == "fast" {
+					cfg.Mode = gc.DefaultMode
+				}
+			}
 			if err := config.Save(s.ConfigFile(), cfg); err != nil {
 				return fmt.Errorf("writing default config: %w", err)
 			}

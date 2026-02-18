@@ -51,7 +51,7 @@ func newEpicNewCmd() *cobra.Command {
 				tmpl = strings.Replace(tmpl, `initiative: ""`, fmt.Sprintf("initiative: %q", initiative), 1)
 			}
 
-			edited, err := openInEditor(tmpl)
+			edited, err := getContent(cmd, tmpl)
 			if err != nil {
 				return fmt.Errorf("editing epic: %w", err)
 			}
@@ -157,7 +157,7 @@ func newEpicShowCmd() *cobra.Command {
 				}
 			}
 			if e.Body != "" {
-				fmt.Printf("\n%s\n", e.Body)
+				fmt.Print(ui.RenderMarkdown(e.Body))
 			}
 
 			return nil
@@ -170,7 +170,7 @@ func newEpicEditCmd() *cobra.Command {
 		Use:   "edit <slug>",
 		Short: "Edit an epic in $EDITOR",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 
 			e, err := appStore.LoadEpic(slug)
@@ -183,7 +183,7 @@ func newEpicEditCmd() *cobra.Command {
 				return fmt.Errorf("marshaling epic: %w", err)
 			}
 
-			edited, err := openInEditor(string(data))
+			edited, err := getContent(cmd, string(data))
 			if err != nil {
 				return fmt.Errorf("editing epic: %w", err)
 			}
@@ -199,6 +199,10 @@ func newEpicEditCmd() *cobra.Command {
 			updated.Slug = e.Slug
 			updated.Created = e.Created
 			updated.Body = body
+
+			if err := checkPRDGate(slug, e.Status, updated.Status); err != nil {
+				return err
+			}
 
 			if err := appStore.SaveEpic(&updated); err != nil {
 				return err
@@ -227,6 +231,9 @@ func newEpicSetCmd() *cobra.Command {
 			case "status":
 				if !slices.Contains(models.ValidEpicStatuses, value) {
 					return fmt.Errorf("invalid status %q: must be one of [%s]", value, strings.Join(models.ValidEpicStatuses, ", "))
+				}
+				if err := checkPRDGate(slug, e.Status, value); err != nil {
+					return err
 				}
 				e.Status = value
 			case "title":
@@ -270,4 +277,26 @@ func newEpicArchiveCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// checkPRDGate returns an error if careful mode requires a PRD before activating an epic.
+func checkPRDGate(epicSlug, oldStatus, newStatus string) error {
+	if appConfig.Mode != "careful" {
+		return nil
+	}
+	if newStatus != models.EpicStatusActive || oldStatus == models.EpicStatusActive {
+		return nil
+	}
+
+	docs, err := appStore.ListDocs(epicSlug)
+	if err != nil {
+		return fmt.Errorf("checking PRD gate: %w", err)
+	}
+	for _, d := range docs {
+		if d.Type == models.DocTypePRD {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("careful mode requires a PRD document for epic %q before activating it.\nCreate one with: specflow doc new <prd-slug> --epic %s --type prd", epicSlug, epicSlug)
 }

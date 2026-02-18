@@ -30,7 +30,7 @@ func newDecisionNewCmd() *cobra.Command {
 		Use:   "new <slug>",
 		Short: "Create a new decision",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			if err := models.ValidateSlug(slug); err != nil {
 				return err
@@ -41,7 +41,7 @@ func newDecisionNewCmd() *cobra.Command {
 				return fmt.Errorf("loading template: %w", err)
 			}
 
-			edited, err := openInEditor(tmpl)
+			edited, err := getContent(cmd, tmpl)
 			if err != nil {
 				return fmt.Errorf("editing decision: %w", err)
 			}
@@ -111,7 +111,7 @@ func newDecisionShowCmd() *cobra.Command {
 				}
 			}
 			if d.Body != "" {
-				fmt.Printf("\n%s\n", d.Body)
+				fmt.Print(ui.RenderMarkdown(d.Body))
 			}
 
 			return nil

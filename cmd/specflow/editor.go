@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/balazscsaba2006/specflow/internal/config"
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // getEditor returns the editor command to use, checking:
@@ -26,6 +29,40 @@ func getEditor() string {
 		return v
 	}
 	return "vi"
+}
+
+// getContent resolves input from three sources in priority order:
+// 1. --file flag (explicit path)
+// 2. Piped stdin (auto-detected via non-TTY)
+// 3. $EDITOR (interactive terminal fallback)
+func getContent(cmd *cobra.Command, fallback string) (string, error) {
+	// Priority 1: --file flag.
+	filePath, _ := cmd.Flags().GetString("file")
+	if filePath != "" {
+		data, err := os.ReadFile(filePath) //nolint:gosec // user-provided path is intentional
+		if err != nil {
+			return "", fmt.Errorf("reading file %q: %w", filePath, err)
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return "", fmt.Errorf("file %q is empty", filePath)
+		}
+		return string(data), nil
+	}
+
+	// Priority 2: piped stdin (non-TTY).
+	if !term.IsTerminal(int(os.Stdin.Fd())) { //nolint:gosec // stdin fd fits in int on all supported platforms
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("reading stdin: %w", err)
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return "", fmt.Errorf("stdin is empty")
+		}
+		return string(data), nil
+	}
+
+	// Priority 3: interactive editor.
+	return openInEditor(fallback)
 }
 
 // openInEditor writes content to a temp file, opens it in $EDITOR,
