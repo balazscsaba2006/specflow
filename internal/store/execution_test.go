@@ -1,6 +1,7 @@
 package store
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -203,5 +204,43 @@ func TestExecutionListEmpty(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Errorf("ListExecutions() returned %d, want 0", len(list))
+	}
+}
+
+func TestExecutionListSkipsLatestDir(t *testing.T) {
+	s := newTestStore(t)
+	storySlug := "latest-dir-story"
+
+	e := &models.Execution{
+		Story:        storySlug,
+		GitRefBefore: "abc123",
+	}
+	if err := s.CreateExecution(e); err != nil {
+		t.Fatalf("CreateExecution() error = %v", err)
+	}
+
+	// Simulate what SavePlan does: create a latest/ directory with plan.md but no meta.yaml.
+	latestDir := s.ExecutionDir(storySlug, "latest")
+	if err := os.MkdirAll(latestDir, 0o750); err != nil {
+		t.Fatalf("creating latest dir: %v", err)
+	}
+	if err := os.WriteFile(latestDir+"/plan.md", []byte("# Plan"), 0o600); err != nil {
+		t.Fatalf("writing plan.md: %v", err)
+	}
+
+	list, err := s.ListExecutions(storySlug)
+	if err != nil {
+		t.Fatalf("ListExecutions() error = %v", err)
+	}
+	if len(list) != 1 {
+		t.Errorf("ListExecutions() returned %d, want 1 (should skip latest/)", len(list))
+	}
+
+	latest, err := s.LatestExecution(storySlug)
+	if err != nil {
+		t.Fatalf("LatestExecution() error = %v", err)
+	}
+	if latest.ID != e.ID {
+		t.Errorf("LatestExecution().ID = %q, want %q", latest.ID, e.ID)
 	}
 }

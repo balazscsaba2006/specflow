@@ -76,6 +76,9 @@ func (s *Store) ListExecutions(storySlug string) ([]*models.Execution, error) {
 		if !entry.IsDir() {
 			continue
 		}
+		if entry.Name() == "latest" {
+			continue // latest/ is a mutable workspace for plans/verifications, not an execution record
+		}
 		e, err := s.LoadExecution(storySlug, entry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("listing executions: %w", err)
