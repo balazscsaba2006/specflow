@@ -12,6 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// printLabeledList prints a labeled list of strings if non-empty.
+func printLabeledList(label string, items []string) {
+	if len(items) == 0 {
+		return
+	}
+	fmt.Println(label)
+	for _, item := range items {
+		fmt.Printf("  - %s\n", item)
+	}
+}
+
 func newStoryCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "story",
@@ -177,48 +188,13 @@ func newStoryShowCmd() *cobra.Command {
 			fmt.Printf("%s  %s\n", ui.Label("Created:"), st.Created.Format("2006-01-02 15:04:05"))
 			fmt.Printf("%s  %s\n", ui.Label("Updated:"), st.Updated.Format("2006-01-02 15:04:05"))
 
-			if len(st.BlockedBy) > 0 {
-				fmt.Println("Blocked By:")
-				for _, b := range st.BlockedBy {
-					fmt.Printf("  - %s\n", b)
-				}
-			}
-			if len(st.Labels) > 0 {
-				fmt.Println("Labels:")
-				for _, l := range st.Labels {
-					fmt.Printf("  - %s\n", l)
-				}
-			}
-			if len(st.Acceptance) > 0 {
-				fmt.Println("Acceptance Criteria:")
-				for _, a := range st.Acceptance {
-					fmt.Printf("  - %s\n", a)
-				}
-			}
-			if len(st.DocRefs) > 0 {
-				fmt.Println("Doc Refs:")
-				for _, d := range st.DocRefs {
-					fmt.Printf("  - %s\n", d)
-				}
-			}
-			if len(st.NonGoals) > 0 {
-				fmt.Println("Non-Goals:")
-				for _, ng := range st.NonGoals {
-					fmt.Printf("  - %s\n", ng)
-				}
-			}
-			if len(st.OpenQuestions) > 0 {
-				fmt.Println("Open Questions:")
-				for _, q := range st.OpenQuestions {
-					fmt.Printf("  - %s\n", q)
-				}
-			}
-			if len(st.Assumptions) > 0 {
-				fmt.Println("Assumptions:")
-				for _, a := range st.Assumptions {
-					fmt.Printf("  - %s\n", a)
-				}
-			}
+			printLabeledList("Blocked By:", st.BlockedBy)
+			printLabeledList("Labels:", st.Labels)
+			printLabeledList("Acceptance Criteria:", st.Acceptance)
+			printLabeledList("Doc Refs:", st.DocRefs)
+			printLabeledList("Non-Goals:", st.NonGoals)
+			printLabeledList("Open Questions:", st.OpenQuestions)
+			printLabeledList("Assumptions:", st.Assumptions)
 			if st.Body != "" {
 				fmt.Print(ui.RenderMarkdown(st.Body))
 			}
