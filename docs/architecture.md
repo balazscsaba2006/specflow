@@ -177,7 +177,10 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 |       +-- {exec-id}/
 |           +-- verification.md              # Verification findings
 |           +-- meta.yaml                    # Git refs, timestamps, status
-+-- archive/                                 # Archived (completed) epics and stories
++-- archive/                                 # Archived (completed) items
+    +-- initiatives/
+    |   +-- {slug}/
+    |       +-- initiative.md               # Compacted (frontmatter-only)
     +-- epics/
     |   +-- {slug}/
     |       +-- epic.md                      # Compacted (frontmatter-only)
@@ -386,7 +389,7 @@ Append-only activity log entry stored in `log.jsonl`. Uses JSON tags (not YAML) 
 | `result` | string | Verification result |
 | `critical` / `major` / `minor` | int | Finding severity counts |
 
-**Event types**: `story.status_changed`, `execution.started`, `execution.completed`, `execution.paused`, `verification.saved`, `doc.created`, `doc.updated`, `decision.recorded`, `initiative.created`, `epic.created`, `story.created`, `plan.saved`, `question.resolved`
+**Event types**: `story.status_changed`, `execution.started`, `execution.completed`, `execution.paused`, `verification.saved`, `doc.created`, `doc.updated`, `decision.recorded`, `initiative.created`, `epic.created`, `story.created`, `plan.saved`, `question.resolved`, `epic.archived`, `story.archived`, `initiative.archived`
 
 ---
 
@@ -489,12 +492,13 @@ Executions are indexed by story slug under a top-level `executions/` directory, 
 
 ### Archiving
 
-Completed epics and standalone stories can be archived to `.specflow/archive/`. Archiving moves files out of day-to-day directories and compacts them.
+Completed epics, standalone stories, and initiatives can be archived to `.specflow/archive/`. Archiving moves files out of day-to-day directories and compacts them.
 
-- **Filesystem separation**: archived items are excluded from all default listings (CLI and MCP) without filtering logic. Standard `ListEpics()` / `ListStories()` only read active directories.
-- **Body compaction**: story and epic files in the archive are reduced to frontmatter-only tombstones. The markdown body is stripped. This is lossy but git preserves the full content in history.
+- **Filesystem separation**: archived items are excluded from all default listings (CLI and MCP) without filtering logic. Standard `ListEpics()` / `ListStories()` / `ListInitiatives()` only read active directories.
+- **Body compaction**: story, epic, and initiative files in the archive are reduced to frontmatter-only tombstones. The markdown body is stripped. This is lossy but git preserves the full content in history.
 - **Docs preserved**: epic-scoped documents are moved as-is (no compaction) since they may be referenced by future stories via `doc_refs`.
 - **Cross-reference resolution**: `sf_context_build`, `sf_story_next`, and `sf_blocked` fall back to archived epics and standalone stories when resolving blocker references, story lookups, and doc refs.
-- **Opt-in visibility**: `--include-archived` (CLI) and `include_archived` (MCP) flags allow listing archived epics/stories when needed.
-- **Standalone stories**: archived via `specflow story archive <slug>` to `.specflow/archive/stories/{slug}.md`. Only standalone stories (no epic) can be archived individually; epic-scoped stories are archived with their epic.
+- **Opt-in visibility**: `--include-archived` (CLI) and `include_archived` (MCP) flags allow listing archived epics, stories, and initiatives when needed.
+- **Standalone stories**: archived via `specflow story archive <slug>` or `sf_story_archive` to `.specflow/archive/stories/{slug}.md`. Only standalone stories (no epic) can be archived individually; epic-scoped stories are archived with their epic.
+- **Initiatives**: archived via `specflow initiative archive <slug>` or `sf_initiative_archive` to `.specflow/archive/initiatives/{slug}/initiative.md`. Requires all linked epics to be archived or completed (unless force is used). Initiative archiving does not cascade to linked epics.
 - **Trade-off**: archiving is a one-way operation at the filesystem level. Restoring requires manual file moves or git checkout. Acceptable since archiving implies the work is fully complete.

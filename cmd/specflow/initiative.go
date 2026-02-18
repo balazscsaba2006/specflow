@@ -70,14 +70,22 @@ func newInitiativeNewCmd() *cobra.Command {
 }
 
 func newInitiativeLsCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "ls",
 		Short: "List all initiatives",
 		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			initiatives, err := appStore.ListInitiatives()
 			if err != nil {
 				return err
+			}
+
+			includeArchived, _ := cmd.Flags().GetBool("include-archived")
+			if includeArchived {
+				archived, archErr := appStore.ListArchivedInitiatives()
+				if archErr == nil {
+					initiatives = append(initiatives, archived...)
+				}
 			}
 
 			headers := []string{"SLUG", "TITLE", "STATUS"}
@@ -90,6 +98,10 @@ func newInitiativeLsCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("include-archived", false, "Include archived initiatives")
+
+	return cmd
 }
 
 func newInitiativeShowCmd() *cobra.Command {
@@ -221,26 +233,27 @@ func newInitiativeSetCmd() *cobra.Command {
 }
 
 func newInitiativeArchiveCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "archive <slug>",
-		Short: "Archive an initiative (shortcut for set <slug> status archived)",
+		Short: "Archive an initiative (move to archive, compact file)",
+		Long:  "Moves the initiative to .specflow/archive/initiatives/, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed unless --force is used.",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
+			force, _ := cmd.Flags().GetBool("force")
 
-			i, err := appStore.LoadInitiative(slug)
+			summary, err := appStore.ArchiveInitiative(slug, force)
 			if err != nil {
 				return err
 			}
 
-			i.Status = models.InitiativeStatusArchived
-
-			if err := appStore.SaveInitiative(i); err != nil {
-				return err
-			}
-
-			fmt.Printf("Archived initiative %q\n", slug)
+			fmt.Printf("Archived initiative %q (%d linked epics)\n",
+				summary.Title, summary.EpicCount)
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("force", false, "Archive even if initiative/epics aren't in completed/archived status")
+
+	return cmd
 }

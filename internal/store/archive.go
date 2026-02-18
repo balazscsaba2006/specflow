@@ -249,6 +249,117 @@ func (s *Store) archiveStoryFile(epicSlug, storySlug string) string {
 	return fmt.Sprintf("%s/%s.md", s.ArchiveEpicStoriesDir(epicSlug), storySlug)
 }
 
+// InitiativeArchiveSummary reports what was moved during an initiative archive.
+type InitiativeArchiveSummary struct {
+	Slug      string
+	Title     string
+	EpicCount int // number of linked epics (informational)
+}
+
+// ArchiveInitiative moves an initiative to the archive directory,
+// compacting it to a frontmatter-only tombstone.
+// If force is false, the initiative must be completed and all linked epics must be archived or completed.
+func (s *Store) ArchiveInitiative(slug string, force bool) (*InitiativeArchiveSummary, error) {
+	if s.IsInitiativeArchived(slug) {
+		return nil, fmt.Errorf("initiative %q is already archived", slug)
+	}
+
+	ini, err := s.LoadInitiative(slug)
+	if err != nil {
+		return nil, fmt.Errorf("archiving initiative: %w", err)
+	}
+
+	if !force && ini.Status != models.InitiativeStatusCompleted {
+		return nil, fmt.Errorf(
+			"initiative %q has status %q (expected %q); use force to override",
+			slug, ini.Status, models.InitiativeStatusCompleted,
+		)
+	}
+
+	if !force {
+		for _, epicSlug := range ini.Epics {
+			ep, loadErr := s.LoadEpic(epicSlug)
+			if loadErr != nil {
+				// If we can't load it, check if it's already archived.
+				if !s.IsArchived(epicSlug) {
+					return nil, fmt.Errorf("linked epic %q not found and not archived; use force to override", epicSlug)
+				}
+				continue
+			}
+			if ep.Status != models.EpicStatusCompleted && !s.IsArchived(epicSlug) {
+				return nil, fmt.Errorf(
+					"linked epic %q has status %q (expected completed or archived); use force to override",
+					epicSlug, ep.Status,
+				)
+			}
+		}
+	}
+
+	if err := s.EnsureDir(s.ArchiveInitiativeDir(slug)); err != nil {
+		return nil, fmt.Errorf("creating archive directory: %w", err)
+	}
+
+	// Compact and write to archive.
+	ini.Body = ""
+	ini.Status = models.InitiativeStatusArchived
+	if err := WriteFile(s.ArchiveInitiativeFile(slug), ini, ""); err != nil {
+		return nil, fmt.Errorf("compacting initiative %q: %w", slug, err)
+	}
+
+	if err := os.RemoveAll(s.InitiativeDir(slug)); err != nil {
+		return nil, fmt.Errorf("removing original initiative dir: %w", err)
+	}
+
+	return &InitiativeArchiveSummary{
+		Slug:      slug,
+		Title:     ini.Title,
+		EpicCount: len(ini.Epics),
+	}, nil
+}
+
+// IsInitiativeArchived reports whether an initiative exists in the archive.
+func (s *Store) IsInitiativeArchived(slug string) bool {
+	_, err := os.Stat(s.ArchiveInitiativeFile(slug))
+	return err == nil
+}
+
+// LoadArchivedInitiative reads an initiative from the archive directory.
+func (s *Store) LoadArchivedInitiative(slug string) (*models.Initiative, error) {
+	path := s.ArchiveInitiativeFile(slug)
+	var i models.Initiative
+	body, err := ParseFile(path, &i)
+	if err != nil {
+		return nil, fmt.Errorf("loading archived initiative %q: %w", slug, err)
+	}
+	i.Body = body
+	return &i, nil
+}
+
+// ListArchivedInitiatives returns all initiatives in the archive directory.
+func (s *Store) ListArchivedInitiatives() ([]*models.Initiative, error) {
+	dir := s.ArchiveInitiativesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading archived initiatives directory: %w", err)
+	}
+
+	var initiatives []*models.Initiative
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		i, loadErr := s.LoadArchivedInitiative(entry.Name())
+		if loadErr != nil {
+			return nil, fmt.Errorf("listing archived initiatives: %w", loadErr)
+		}
+		initiatives = append(initiatives, i)
+	}
+	return initiatives, nil
+}
+
 // StoryArchiveSummary reports what was moved during a standalone story archive.
 type StoryArchiveSummary struct {
 	Slug           string

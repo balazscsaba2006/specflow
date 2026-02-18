@@ -372,6 +372,225 @@ func TestIsArchived(t *testing.T) {
 	}
 }
 
+// setupInitiativeArchiveTest creates a temporary .specflow directory with an initiative
+// and optionally linked epics for testing initiative archiving.
+func setupInitiativeArchiveTest(t *testing.T, iniStatus string, epicSlugs []string, epicStatuses map[string]string, archiveEpics map[string]bool) *Store {
+	t.Helper()
+
+	root := filepath.Join(t.TempDir(), ".specflow")
+	s := New(root)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create epics first.
+	for _, slug := range epicSlugs {
+		status := epicStatuses[slug]
+		ep := &models.Epic{
+			Slug:   slug,
+			Title:  "Epic " + slug,
+			Status: status,
+		}
+		if err := s.CreateEpic(ep); err != nil {
+			t.Fatal(err)
+		}
+
+		// Archive the epic if requested.
+		if archiveEpics[slug] {
+			// Set status to completed for archiving.
+			ep.Status = models.EpicStatusCompleted
+			if err := s.SaveEpic(ep); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.ArchiveEpic(slug, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	ini := &models.Initiative{
+		Slug:   "test-initiative",
+		Title:  "Test Initiative",
+		Status: iniStatus,
+		Goal:   "Test goal",
+		Epics:  epicSlugs,
+		Body:   "# Initiative body\n\nThis should be stripped.",
+	}
+	if err := s.CreateInitiative(ini); err != nil {
+		t.Fatal(err)
+	}
+
+	return s
+}
+
+func TestArchiveInitiative(t *testing.T) {
+	tests := []struct {
+		name          string
+		iniStatus     string
+		epicSlugs     []string
+		epicStatuses  map[string]string
+		archiveEpics  map[string]bool
+		force         bool
+		wantErr       string
+		wantEpicCount int
+	}{
+		{
+			name:         "successful archive of completed initiative with archived epics",
+			iniStatus:    models.InitiativeStatusCompleted,
+			epicSlugs:    []string{"epic-a", "epic-b"},
+			epicStatuses: map[string]string{"epic-a": models.EpicStatusCompleted, "epic-b": models.EpicStatusCompleted},
+			archiveEpics: map[string]bool{"epic-a": true, "epic-b": true},
+			wantEpicCount: 2,
+		},
+		{
+			name:         "successful archive with completed (not archived) epics",
+			iniStatus:    models.InitiativeStatusCompleted,
+			epicSlugs:    []string{"epic-a"},
+			epicStatuses: map[string]string{"epic-a": models.EpicStatusCompleted},
+			archiveEpics: map[string]bool{},
+			wantEpicCount: 1,
+		},
+		{
+			name:         "successful archive with no linked epics",
+			iniStatus:    models.InitiativeStatusCompleted,
+			epicSlugs:    nil,
+			epicStatuses: map[string]string{},
+			archiveEpics: map[string]bool{},
+			wantEpicCount: 0,
+		},
+		{
+			name:         "non-completed initiative without force",
+			iniStatus:    models.InitiativeStatusActive,
+			epicSlugs:    nil,
+			epicStatuses: map[string]string{},
+			archiveEpics: map[string]bool{},
+			wantErr:      `initiative "test-initiative" has status "active"`,
+		},
+		{
+			name:         "linked epic not completed or archived without force",
+			iniStatus:    models.InitiativeStatusCompleted,
+			epicSlugs:    []string{"epic-a"},
+			epicStatuses: map[string]string{"epic-a": models.EpicStatusActive},
+			archiveEpics: map[string]bool{},
+			wantErr:      `linked epic "epic-a" has status "active"`,
+		},
+		{
+			name:         "force overrides all checks",
+			iniStatus:    models.InitiativeStatusActive,
+			epicSlugs:    []string{"epic-a"},
+			epicStatuses: map[string]string{"epic-a": models.EpicStatusActive},
+			archiveEpics: map[string]bool{},
+			force:         true,
+			wantEpicCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := setupInitiativeArchiveTest(t, tt.iniStatus, tt.epicSlugs, tt.epicStatuses, tt.archiveEpics)
+
+			summary, err := s.ArchiveInitiative("test-initiative", tt.force)
+
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !contains(err.Error(), tt.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if summary.EpicCount != tt.wantEpicCount {
+				t.Errorf("epic count: got %d, want %d", summary.EpicCount, tt.wantEpicCount)
+			}
+
+			// Original initiative dir should be gone.
+			if _, statErr := os.Stat(s.InitiativeDir("test-initiative")); !os.IsNotExist(statErr) {
+				t.Error("original initiative dir still exists")
+			}
+
+			// Archived initiative should exist.
+			if !s.IsInitiativeArchived("test-initiative") {
+				t.Error("IsInitiativeArchived returned false after archive")
+			}
+
+			// Archived initiative should have no body and status=archived.
+			archived, loadErr := s.LoadArchivedInitiative("test-initiative")
+			if loadErr != nil {
+				t.Fatalf("loading archived initiative: %v", loadErr)
+			}
+			if archived.Body != "" {
+				t.Errorf("archived initiative body should be empty, got %q", archived.Body)
+			}
+			if archived.Status != models.InitiativeStatusArchived {
+				t.Errorf("archived initiative status: got %q, want %q", archived.Status, models.InitiativeStatusArchived)
+			}
+		})
+	}
+}
+
+func TestArchiveInitiative_NonExistent(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".specflow")
+	s := New(root)
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := s.ArchiveInitiative("nonexistent", false)
+	if err == nil {
+		t.Fatal("expected error for non-existent initiative")
+	}
+}
+
+func TestArchiveInitiative_AlreadyArchived(t *testing.T) {
+	s := setupInitiativeArchiveTest(t, models.InitiativeStatusCompleted, nil, map[string]string{}, map[string]bool{})
+
+	if _, err := s.ArchiveInitiative("test-initiative", false); err != nil {
+		t.Fatalf("first archive: %v", err)
+	}
+
+	_, err := s.ArchiveInitiative("test-initiative", false)
+	if err == nil {
+		t.Fatal("expected error for already-archived initiative")
+	}
+	if !contains(err.Error(), "already archived") {
+		t.Fatalf("expected 'already archived' error, got %q", err.Error())
+	}
+}
+
+func TestListArchivedInitiatives(t *testing.T) {
+	s := setupInitiativeArchiveTest(t, models.InitiativeStatusCompleted, nil, map[string]string{}, map[string]bool{})
+
+	// Before archive: no archived initiatives.
+	initiatives, err := s.ListArchivedInitiatives()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(initiatives) != 0 {
+		t.Errorf("expected 0 archived initiatives, got %d", len(initiatives))
+	}
+
+	if _, archErr := s.ArchiveInitiative("test-initiative", false); archErr != nil {
+		t.Fatal(archErr)
+	}
+
+	initiatives, err = s.ListArchivedInitiatives()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(initiatives) != 1 {
+		t.Fatalf("expected 1 archived initiative, got %d", len(initiatives))
+	}
+	if initiatives[0].Slug != "test-initiative" {
+		t.Errorf("expected slug %q, got %q", "test-initiative", initiatives[0].Slug)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchString(s, substr)
 }

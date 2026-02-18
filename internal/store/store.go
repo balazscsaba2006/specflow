@@ -177,6 +177,18 @@ func (s *Store) ArchiveStoryExecutionsDir(storySlug string) string {
 	return filepath.Join(s.ArchiveExecutionsDir(), storySlug)
 }
 
+func (s *Store) ArchiveInitiativesDir() string {
+	return filepath.Join(s.ArchiveDir(), "initiatives")
+}
+
+func (s *Store) ArchiveInitiativeDir(slug string) string {
+	return filepath.Join(s.ArchiveInitiativesDir(), slug)
+}
+
+func (s *Store) ArchiveInitiativeFile(slug string) string {
+	return filepath.Join(s.ArchiveInitiativeDir(slug), "initiative.md")
+}
+
 // Init creates the base .specflow/ directory structure.
 func (s *Store) Init() error {
 	dirs := []string{

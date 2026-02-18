@@ -494,3 +494,42 @@ Resolve an open question on any entity by removing it from the `open_questions` 
 Auto-detects entity type by trying initiative, epic, story, project-level doc, then epic-scoped doc.
 
 **Response:** Confirmation with entity type, question, and answer.
+
+---
+
+### sf_epic_archive
+
+Archive an epic. Moves the epic tree to `.specflow/archive/`, compacts story and epic files to frontmatter-only tombstones, and moves execution directories. By default, requires the epic to be completed and all stories to be done.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Epic slug to archive |
+| `force` | bool | no | Archive even if not completed/done |
+
+**Response:** Confirmation with epic title, story count, and execution count.
+
+---
+
+### sf_story_archive
+
+Archive a standalone story. Moves it to `.specflow/archive/stories/`, compacts to a frontmatter-only tombstone, and moves execution directories. Only works for standalone stories (not under an epic).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Standalone story slug to archive |
+| `force` | bool | no | Archive even if not done |
+
+**Response:** Confirmation with story title and execution count.
+
+---
+
+### sf_initiative_archive
+
+Archive an initiative. Moves it to `.specflow/archive/initiatives/`, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed unless force is used.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Initiative slug to archive |
+| `force` | bool | no | Archive even if not completed |
+
+**Response:** Confirmation with initiative title and linked epic count.

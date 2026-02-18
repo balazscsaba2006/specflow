@@ -135,6 +135,21 @@ Category values: missing | bug | performance | security | clarity | quality`,
 		Name: "sf_question_resolve",
 		Description: `Resolve an open question on any entity (initiative, epic, story, or doc) by removing it from open_questions. Records the resolution in the activity log.`,
 	}, s.handleQuestionResolve)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_epic_archive",
+		Description: `Archive an epic. Moves the epic tree to the archive directory, compacts story and epic files to frontmatter-only tombstones, and moves execution directories. Use force to bypass status checks.`,
+	}, s.handleEpicArchive)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_story_archive",
+		Description: `Archive a standalone story. Moves it to the archive directory, compacts to a frontmatter-only tombstone, and moves execution directories. Only works for standalone stories (not under an epic). Use force to bypass status checks.`,
+	}, s.handleStoryArchive)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_initiative_archive",
+		Description: `Archive an initiative. Moves it to the archive directory, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed (unless force is used).`,
+	}, s.handleInitiativeArchive)
 }
 
 // --- Input structs ---
@@ -249,6 +264,21 @@ type questionResolveInput struct {
 	Entity   string `json:"entity" jsonschema:"entity slug (initiative, epic, story, or doc)"`
 	Question string `json:"question" jsonschema:"the exact open question text to resolve"`
 	Answer   string `json:"answer" jsonschema:"the answer or resolution"`
+}
+
+type epicArchiveInput struct {
+	Slug  string `json:"slug" jsonschema:"epic slug to archive"`
+	Force bool   `json:"force,omitempty" jsonschema:"archive even if not completed/done"`
+}
+
+type storyArchiveInput struct {
+	Slug  string `json:"slug" jsonschema:"standalone story slug to archive"`
+	Force bool   `json:"force,omitempty" jsonschema:"archive even if not done"`
+}
+
+type initiativeArchiveInput struct {
+	Slug  string `json:"slug" jsonschema:"initiative slug to archive"`
+	Force bool   `json:"force,omitempty" jsonschema:"archive even if not completed"`
 }
 
 // --- Handlers ---
@@ -848,6 +878,63 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 	}
 
 	return errResultf("entity %q not found", input.Entity), nil, nil
+}
+
+func (s *Server) handleEpicArchive(_ context.Context, _ *mcp.CallToolRequest, input epicArchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.ArchiveEpic(input.Slug, input.Force)
+	if err != nil {
+		return errResultf("archiving epic: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogEpicArchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Archived epic **%s** (`%s`)\n%d stories, %d executions compacted",
+		summary.EpicTitle, summary.EpicSlug, summary.StoryCount, summary.ExecutionCount)), nil, nil
+}
+
+func (s *Server) handleStoryArchive(_ context.Context, _ *mcp.CallToolRequest, input storyArchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.ArchiveStory(input.Slug, input.Force)
+	if err != nil {
+		return errResultf("archiving story: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogStoryArchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Archived story **%s** (`%s`)\n%d executions moved",
+		summary.Title, summary.Slug, summary.ExecutionCount)), nil, nil
+}
+
+func (s *Server) handleInitiativeArchive(_ context.Context, _ *mcp.CallToolRequest, input initiativeArchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.ArchiveInitiative(input.Slug, input.Force)
+	if err != nil {
+		return errResultf("archiving initiative: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogInitiativeArchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Archived initiative **%s** (`%s`)\n%d linked epics",
+		summary.Title, summary.Slug, summary.EpicCount)), nil, nil
 }
 
 // --- Helpers ---

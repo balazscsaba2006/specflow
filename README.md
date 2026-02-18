@@ -11,7 +11,7 @@ specflow sits between the human (architect/PM/tech lead) and Claude Code (the AI
 3. **Progress tracking** -- status rollup across the full hierarchy
 4. **Verification support** -- plan-vs-implementation comparison data
 5. **Working style enforcement** -- behavioral instructions embedded in MCP tool descriptions
-6. **Epic archiving** -- move completed epics out of day-to-day workflows while preserving cross-references
+6. **Archiving** -- move completed epics, stories, and initiatives out of day-to-day workflows while preserving cross-references
 
 **Core principle:** specflow has zero AI logic. No API keys. No LLM calls. Claude Code IS the AI. specflow manages structured state and assembles context. All intelligence comes from Claude Code interacting through MCP tools.
 
@@ -133,7 +133,7 @@ specflow has two ways to record decisions:
 
 ## MCP Tools
 
-specflow exposes 30 MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server:
+specflow exposes 33 MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server:
 
 ```sh
 specflow mcp
@@ -188,6 +188,9 @@ specflow init --with-claude
 | `sf_execution_pause` | Pause execution with handover notes for session continuity |
 | `sf_verify_save` | Save verification results |
 | `sf_question_resolve` | Mark an open question as resolved |
+| `sf_epic_archive` | Archive an epic (compact + move to archive) |
+| `sf_story_archive` | Archive a standalone story (compact + move to archive) |
+| `sf_initiative_archive` | Archive an initiative (compact + move to archive) |
 
 See the [MCP Tools Reference](docs/mcp-tools.md) for parameters and response formats.
 
@@ -244,8 +247,10 @@ All data lives in `.specflow/` as markdown with YAML frontmatter:
 |   +-- {exec-id}/
 |       +-- verification.md
 |       +-- meta.yaml                    # Git refs, timestamps, status
-+-- archive/                             # Archived (completed) epics
++-- archive/                             # Archived (completed) items
+    +-- initiatives/{slug}/             # Compacted initiative tombstones
     +-- epics/{slug}/                    # Compacted epic + stories + docs
+    +-- stories/                         # Compacted standalone stories
     +-- executions/{story-slug}/         # Moved execution data
 ```
 

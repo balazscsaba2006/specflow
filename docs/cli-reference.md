@@ -120,10 +120,16 @@ Create a new initiative. Opens `$EDITOR` with a template for editing frontmatter
 ### initiative ls
 
 ```
-specflow initiative ls
+specflow initiative ls [flags]
 ```
 
 List all initiatives. Outputs a table with columns: SLUG, TITLE, STATUS.
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--include-archived` | bool | `false` | Include archived initiatives |
 
 ### initiative show
 
@@ -174,16 +180,22 @@ Quick-update a single field on an initiative without opening an editor.
 ### initiative archive
 
 ```
-specflow initiative archive <slug>
+specflow initiative archive <slug> [flags]
 ```
 
-Archive an initiative. Shortcut for `specflow initiative set <slug> status archived`.
+Archive an initiative. Moves the initiative to `.specflow/archive/initiatives/`, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed unless `--force` is used.
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `slug` | yes | Slug of the initiative to archive |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--force` | bool | `false` | Archive even if initiative/epics aren't in completed/archived status |
 
 ---
 
@@ -839,4 +851,4 @@ specflow mcp
 
 Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.mcp.json`.
 
-The MCP server exposes 30+ tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.
+The MCP server exposes 33 tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.
