@@ -318,6 +318,8 @@ func (s *Server) handleInitiativeShow(_ context.Context, _ *mcp.CallToolRequest,
 		}
 	}
 
+	writeResolvedQuestions(&b, ini.ResolvedQuestions)
+
 	if ini.Body != "" {
 		b.WriteString("\n---\n\n")
 		b.WriteString(ini.Body)
@@ -360,6 +362,7 @@ func (s *Server) handleEpicShow(_ context.Context, _ *mcp.CallToolRequest, input
 	}
 
 	writeStringSection(&b, "Open Questions", epic.OpenQuestions)
+	writeResolvedQuestions(&b, epic.ResolvedQuestions)
 	writeStringSection(&b, "Non-Goals", epic.NonGoals)
 	writeStringSection(&b, "Decisions", epic.Decisions)
 
@@ -468,6 +471,17 @@ func writeChecklistSection(b *strings.Builder, title string, items []string) {
 	}
 }
 
+// writeResolvedQuestions writes a titled section of resolved Q&A pairs.
+func writeResolvedQuestions(b *strings.Builder, items []models.ResolvedQuestion) {
+	if len(items) == 0 {
+		return
+	}
+	b.WriteString("\n### Resolved Questions\n")
+	for _, rq := range items {
+		fmt.Fprintf(b, "- **Q:** %s\n  **A:** %s\n", rq.Question, rq.Answer)
+	}
+}
+
 func (s *Server) handleStoryShow(_ context.Context, _ *mcp.CallToolRequest, input slugInput) (*mcp.CallToolResult, any, error) {
 	story, err := s.findStory(input.Slug)
 	if err != nil {
@@ -494,6 +508,7 @@ func (s *Server) handleStoryShow(_ context.Context, _ *mcp.CallToolRequest, inpu
 	writeChecklistSection(&b, "Acceptance Criteria", story.Acceptance)
 	writeStringSection(&b, "Doc References", story.DocRefs)
 	writeStringSection(&b, "Open Questions", story.OpenQuestions)
+	writeResolvedQuestions(&b, story.ResolvedQuestions)
 	writeStringSection(&b, "Non-Goals", story.NonGoals)
 	writeStringSection(&b, "Assumptions", story.Assumptions)
 
@@ -619,6 +634,13 @@ func (s *Server) handleStoryLs(_ context.Context, _ *mcp.CallToolRequest, input 
 
 func (s *Server) handleDocRead(_ context.Context, _ *mcp.CallToolRequest, input docReadInput) (*mcp.CallToolResult, any, error) {
 	doc, err := s.store.LoadDoc(input.Slug, input.Epic)
+	if err != nil && input.Epic == "" {
+		// Doc not found at project level — search under epics.
+		if found, _, findErr := s.findDoc(input.Slug); findErr == nil {
+			doc = found
+			err = nil
+		}
+	}
 	if err != nil {
 		return errResultf("loading doc: %v", err), nil, nil
 	}
@@ -639,6 +661,8 @@ func (s *Server) handleDocRead(_ context.Context, _ *mcp.CallToolRequest, input 
 			fmt.Fprintf(&b, "- %s\n", q)
 		}
 	}
+
+	writeResolvedQuestions(&b, doc.ResolvedQuestions)
 
 	if doc.Body != "" {
 		b.WriteString("\n---\n\n")

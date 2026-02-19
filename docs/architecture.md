@@ -225,6 +225,7 @@ Groups epics toward a strategic goal. Optional -- epics can exist without one.
 | `goal` | string | Strategic goal statement |
 | `success_criteria` | []string | Measurable success conditions |
 | `open_questions` | []string | Unresolved questions |
+| `resolved_questions` | []ResolvedQuestion | Resolved Q&A pairs (question + answer) |
 
 **Statuses**: `active`, `completed`, `on_hold`, `archived`
 
@@ -241,6 +242,7 @@ A shippable feature or capability. Contains phases that group stories.
 | `initiative` | string | Parent initiative slug (optional) |
 | `phases` | []Phase | Ordered phases, each with a label and story slug list |
 | `open_questions` | []string | Unresolved questions |
+| `resolved_questions` | []ResolvedQuestion | Resolved Q&A pairs (question + answer) |
 | `decisions` | []string | Decision strings recorded inline |
 | `fidelity` | string | Quality target: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
 | `non_goals` | []string | Explicit non-goals to prevent scope creep |
@@ -264,6 +266,7 @@ The atomic work unit. The only entity that goes through execution and verificati
 | `acceptance` | []string | Acceptance criteria |
 | `doc_refs` | []string | Slugs of referenced docs |
 | `open_questions` | []string | Unresolved questions |
+| `resolved_questions` | []ResolvedQuestion | Resolved Q&A pairs (question + answer) |
 | `assumptions` | []string | Assumptions discovered during execution |
 | `fidelity` | string | Quality target (inherits from epic context if not set) |
 | `non_goals` | []string | Explicit non-goals for this story |
@@ -299,6 +302,7 @@ Specs, PRDs, ADRs, and other project documentation. Can be scoped to an epic or 
 | `status` | string | Current status |
 | `epic` | string | Parent epic slug (optional) |
 | `open_questions` | []string | Unresolved questions |
+| `resolved_questions` | []ResolvedQuestion | Resolved Q&A pairs (question + answer) |
 
 **Types**: `prd`, `tech-spec`, `api-spec`, `design-spec`, `adr`, `one-pager`
 

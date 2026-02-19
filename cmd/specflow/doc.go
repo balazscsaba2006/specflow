@@ -154,6 +154,7 @@ func newDocShowCmd() *cobra.Command {
 					fmt.Printf("  - %s\n", q)
 				}
 			}
+			printResolvedQuestions(d.ResolvedQuestions)
 			if d.Body != "" {
 				fmt.Print(ui.RenderMarkdown(d.Body))
 			}

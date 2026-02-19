@@ -23,6 +23,17 @@ func printLabeledList(label string, items []string) {
 	}
 }
 
+// printResolvedQuestions prints resolved Q&A pairs if non-empty.
+func printResolvedQuestions(items []models.ResolvedQuestion) {
+	if len(items) == 0 {
+		return
+	}
+	fmt.Println("Resolved Questions:")
+	for _, rq := range items {
+		fmt.Printf("  Q: %s\n  A: %s\n", rq.Question, rq.Answer)
+	}
+}
+
 func newStoryCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "story",
@@ -195,6 +206,7 @@ func newStoryShowCmd() *cobra.Command {
 			printLabeledList("Doc Refs:", st.DocRefs)
 			printLabeledList("Non-Goals:", st.NonGoals)
 			printLabeledList("Open Questions:", st.OpenQuestions)
+			printResolvedQuestions(st.ResolvedQuestions)
 			printLabeledList("Assumptions:", st.Assumptions)
 			if st.Body != "" {
 				fmt.Print(ui.RenderMarkdown(st.Body))

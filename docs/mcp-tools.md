@@ -29,7 +29,7 @@ Show initiative details including goal, success criteria, linked epics, and open
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Initiative slug |
 
-**Response:** Full initiative detail with all fields and body content.
+**Response:** Full initiative detail with all fields, resolved questions, and body content.
 
 ---
 
@@ -41,7 +41,7 @@ Show epic details including phases, story statuses, and open questions.
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Epic slug |
 
-**Response:** Epic detail with phase map showing each story's status, open questions, and decisions.
+**Response:** Epic detail with phase map showing each story's status, open questions, resolved questions, and decisions.
 
 ---
 
@@ -53,7 +53,7 @@ Show story details including acceptance criteria, doc refs, assumptions, and ope
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Story slug |
 
-**Response:** Full story detail with all fields and body content. Auto-searches across all epics and standalone stories.
+**Response:** Full story detail with all fields, resolved questions, and body content. Auto-searches across all epics and standalone stories.
 
 ---
 
@@ -94,7 +94,7 @@ Read a document by slug. Returns frontmatter summary and full body.
 | `slug` | string | yes | Document slug |
 | `epic` | string | no | Epic slug (for epic-scoped docs) |
 
-**Response:** Full document content with metadata header and body.
+**Response:** Full document content with metadata header, resolved questions, and body.
 
 ---
 
@@ -137,7 +137,7 @@ Build the full 6-layer assembled context for a story. This is the core value of 
 3. **Spec Requirements** -- referenced documents (full content), acceptance criteria
 4. **Implementation Plan** -- approved plan or "no plan yet" prompt
 5. **Referenced Files** -- files from plan, pattern exemplars from config
-6. **Open Items** -- open questions, assumptions, blockers
+6. **Open Items** -- open questions, resolved questions, assumptions, blockers
 
 ---
 
@@ -483,7 +483,7 @@ Save verification results for a story's latest execution.
 
 ### sf_question_resolve
 
-Resolve an open question on any entity by removing it from the `open_questions` list.
+Resolve an open question on any entity. Moves the question from `open_questions` to `resolved_questions` with the answer attached, preserving the Q&A pair on the entity as contextual knowledge.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

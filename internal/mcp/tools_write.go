@@ -133,7 +133,9 @@ Category values: missing | bug | performance | security | clarity | quality`,
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name: "sf_question_resolve",
-		Description: `Resolve an open question on any entity (initiative, epic, story, or doc) by removing it from open_questions. Records the resolution in the activity log.`,
+		Description: `Resolve an open question on any entity (initiative, epic, story, or doc) by removing it from open_questions. Records the resolution in the activity log.
+
+The question is moved from open_questions to resolved_questions with the answer attached, preserving the Q&A pair as contextual knowledge on the entity.`,
 	}, s.handleQuestionResolve)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -808,6 +810,10 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 	// Try initiative.
 	if ini, err := s.store.LoadInitiative(input.Entity); err == nil {
+		ini.ResolvedQuestions = append(ini.ResolvedQuestions, models.ResolvedQuestion{
+			Question: input.Question,
+			Answer:   input.Answer,
+		})
 		ini.OpenQuestions = removeQuestion(ini.OpenQuestions, input.Question)
 		if err := s.store.SaveInitiative(ini); err != nil {
 			return errResultf("saving initiative: %v", err), nil, nil
@@ -822,6 +828,10 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 	// Try epic.
 	if ep, err := s.store.LoadEpic(input.Entity); err == nil {
+		ep.ResolvedQuestions = append(ep.ResolvedQuestions, models.ResolvedQuestion{
+			Question: input.Question,
+			Answer:   input.Answer,
+		})
 		ep.OpenQuestions = removeQuestion(ep.OpenQuestions, input.Question)
 		if err := s.store.SaveEpic(ep); err != nil {
 			return errResultf("saving epic: %v", err), nil, nil
@@ -836,6 +846,10 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 	// Try story (search all stories since we don't know the epic).
 	if st, err := s.findStory(input.Entity); err == nil {
+		st.ResolvedQuestions = append(st.ResolvedQuestions, models.ResolvedQuestion{
+			Question: input.Question,
+			Answer:   input.Answer,
+		})
 		st.OpenQuestions = removeQuestion(st.OpenQuestions, input.Question)
 		if err := s.store.SaveStory(st); err != nil {
 			return errResultf("saving story: %v", err), nil, nil
@@ -850,6 +864,10 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 	// Try doc (project-level first, then under each epic would require listing epics).
 	if doc, err := s.store.LoadDoc(input.Entity, ""); err == nil {
+		doc.ResolvedQuestions = append(doc.ResolvedQuestions, models.ResolvedQuestion{
+			Question: input.Question,
+			Answer:   input.Answer,
+		})
 		doc.OpenQuestions = removeQuestion(doc.OpenQuestions, input.Question)
 		if err := s.store.SaveDoc(doc); err != nil {
 			return errResultf("saving doc: %v", err), nil, nil
@@ -864,6 +882,10 @@ func (s *Server) handleQuestionResolve(_ context.Context, _ *mcp.CallToolRequest
 
 	// Try docs under epics.
 	if doc, epicSlug, err := s.findDoc(input.Entity); err == nil {
+		doc.ResolvedQuestions = append(doc.ResolvedQuestions, models.ResolvedQuestion{
+			Question: input.Question,
+			Answer:   input.Answer,
+		})
 		doc.OpenQuestions = removeQuestion(doc.OpenQuestions, input.Question)
 		if err := s.store.SaveDoc(doc); err != nil {
 			return errResultf("saving doc: %v", err), nil, nil

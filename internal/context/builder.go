@@ -40,9 +40,10 @@ type ContextData struct {
 	ReferencedFiles []FileContent
 
 	// Layer 6: Open items
-	OpenQuestions []QuestionItem
-	Assumptions   []AssumptionItem
-	Blockers      []string
+	OpenQuestions     []QuestionItem
+	ResolvedQuestions []ResolvedQuestionItem
+	Assumptions       []AssumptionItem
+	Blockers          []string
 }
 
 // QuestionItem holds an open question with its source.
@@ -55,6 +56,13 @@ type QuestionItem struct {
 type AssumptionItem struct {
 	Story      string
 	Assumption string
+}
+
+// ResolvedQuestionItem holds a resolved question with its source entity.
+type ResolvedQuestionItem struct {
+	Source   string
+	Question string
+	Answer   string
 }
 
 // FileContent holds a referenced file's path and content.
@@ -120,6 +128,7 @@ func (b *Builder) assemble(storySlug string) (*ContextData, error) {
 
 	// Layer 6: Open items.
 	data.OpenQuestions = b.collectQuestions(data)
+	data.ResolvedQuestions = b.collectResolvedQuestions(data)
 	data.Assumptions = b.collectAssumptions(data)
 	data.Blockers = story.BlockedBy
 
@@ -330,6 +339,32 @@ func (b *Builder) collectQuestions(data *ContextData) []QuestionItem {
 	for _, doc := range data.Docs {
 		for _, q := range doc.OpenQuestions {
 			items = append(items, QuestionItem{Source: "doc:" + doc.Slug, Question: q})
+		}
+	}
+
+	return items
+}
+
+// collectResolvedQuestions gathers resolved questions from all layers.
+func (b *Builder) collectResolvedQuestions(data *ContextData) []ResolvedQuestionItem {
+	var items []ResolvedQuestionItem
+
+	if data.Initiative != nil {
+		for _, rq := range data.Initiative.ResolvedQuestions {
+			items = append(items, ResolvedQuestionItem{Source: "initiative:" + data.Initiative.Slug, Question: rq.Question, Answer: rq.Answer})
+		}
+	}
+	if data.Epic != nil {
+		for _, rq := range data.Epic.ResolvedQuestions {
+			items = append(items, ResolvedQuestionItem{Source: "epic:" + data.Epic.Slug, Question: rq.Question, Answer: rq.Answer})
+		}
+	}
+	for _, rq := range data.Story.ResolvedQuestions {
+		items = append(items, ResolvedQuestionItem{Source: "story:" + data.Story.Slug, Question: rq.Question, Answer: rq.Answer})
+	}
+	for _, doc := range data.Docs {
+		for _, rq := range doc.ResolvedQuestions {
+			items = append(items, ResolvedQuestionItem{Source: "doc:" + doc.Slug, Question: rq.Question, Answer: rq.Answer})
 		}
 	}
 

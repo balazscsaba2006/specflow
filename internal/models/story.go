@@ -62,9 +62,10 @@ type Story struct {
 	Acceptance    []string  `yaml:"acceptance,omitempty"`
 	DocRefs       []string  `yaml:"doc_refs,omitempty"`
 	Fidelity      string    `yaml:"fidelity,omitempty"`
-	OpenQuestions []string  `yaml:"open_questions,omitempty"`
-	NonGoals      []string  `yaml:"non_goals,omitempty"`
-	Assumptions   []string  `yaml:"assumptions,omitempty"`
+	OpenQuestions     []string           `yaml:"open_questions,omitempty"`
+	ResolvedQuestions []ResolvedQuestion `yaml:"resolved_questions,omitempty"`
+	NonGoals          []string           `yaml:"non_goals,omitempty"`
+	Assumptions       []string           `yaml:"assumptions,omitempty"`
 	Created       time.Time `yaml:"created"`
 	Updated       time.Time `yaml:"updated"`
 

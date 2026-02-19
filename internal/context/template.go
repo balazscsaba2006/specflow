@@ -112,6 +112,11 @@ const contextTemplate = `# Execution Context: {{ .Story.Title }}
 ### Open Questions
 {{ range .OpenQuestions }}- [{{ .Source }}] {{ .Question }}
 {{ end }}{{ end }}
+{{- if .ResolvedQuestions }}
+### Resolved Questions
+{{ range .ResolvedQuestions }}- [{{ .Source }}] **Q:** {{ .Question }}
+  **A:** {{ .Answer }}
+{{ end }}{{ end }}
 {{- if .Assumptions }}
 ### Assumptions (from completed stories)
 {{ range .Assumptions }}- [{{ .Story }}] {{ .Assumption }}

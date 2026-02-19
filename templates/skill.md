@@ -11,13 +11,15 @@ You have access to specflow MCP tools (`sf_*`) for managing development artifact
 
 **specflow is the source of truth for planning artifacts.** When both specflow and superpowers skills are available:
 
-### Planning (`superpowers:writing-plans`)
+### Discovery & Planning (`superpowers:brainstorming` → specflow artifacts)
 
-When the user asks to plan a multi-story feature or the writing-plans skill is invoked:
-1. **Create the epic and stories in specflow** via `sf_epic_create` and `sf_story_create` — NOT a standalone plan file in `docs/plans/`. For single, self-contained work, create a standalone story via `sf_story_create` (no epic needed — see "When to Use Epics vs Standalone Stories").
-2. **Save per-story implementation plans** via `sf_plan_save` — this is where the bite-sized steps, TDD structure, and file-level detail from writing-plans lives.
-3. **Use writing-plans' task granularity** (test → verify fail → implement → verify pass → commit) inside the sf_plan_save content.
-4. **Do NOT save to `docs/plans/`** — specflow artifacts replace standalone plan files.
+When the user describes a new feature or system:
+1. **Brainstorming drives discovery** — explore, question, propose approaches, iterate, get approval.
+2. **After design approval, create specflow artifacts** — initiative/epic/stories, NOT `docs/plans/` files.
+3. **Per-story plans:**
+   - **Complex multi-step stories:** Invoke `writing-plans` to produce granular TDD steps, then save the output via `sf_plan_save` (not to `docs/plans/`).
+   - **Simple stories:** Write the plan directly via `sf_plan_save` using writing-plans style (TDD steps) without invoking the skill.
+4. **Get plan approval** before implementation (see Plan Approval section).
 
 The epic/stories define WHAT to build (acceptance criteria, priorities, phases, dependencies). The plan defines HOW to build each story (step-by-step implementation).
 
@@ -54,6 +56,59 @@ sf_execution_start → write code → sf_execution_complete → sf_verify_save �
 ```
 
 When working on a standalone story, `sf_context_build` assembles project conventions + story details (no epic/spec layers). This is sufficient for focused, self-contained work.
+
+## Discovery Phase — Discuss Before Creating
+
+**When a user describes a new feature, system change, or problem to solve — DO NOT immediately create specflow artifacts.** Creating initiatives, epics, stories, or docs is the OUTPUT of discovery, not the starting point.
+
+### When Discovery Applies
+
+- User describes a feature, problem, or system change in natural language
+- User shares context about what they want to build (even if detailed)
+- User asks to "plan", "design", or "figure out" something
+
+### When to Skip Discovery
+
+- User explicitly asks to create a specific artifact ("create an epic for X")
+- User is continuing work on an already-planned story
+- The task is a trivial fix with obvious scope
+
+### Discovery Flow
+
+1. **Explore** — Read relevant code, understand current state, identify constraints
+2. **Ask questions** — One at a time, clarify intent, constraints, success criteria
+3. **Propose approaches** — 2-3 options with trade-offs and your recommendation
+4. **Iterate** — Refine based on user feedback, go back and forth as needed
+5. **Align** — Present final design summary, get explicit user approval
+6. **THEN create artifacts** — Break down into specflow hierarchy (initiative > epic > stories) only after alignment
+
+**The user saying "let's build X" is the START of discovery, not a signal to create artifacts.**
+
+### Integration with Brainstorming Skill
+
+If the `superpowers:brainstorming` skill is available, it drives steps 1-5. The specflow-specific addition is step 6: instead of saving a design doc to `docs/plans/`, create specflow artifacts:
+
+1. Brainstorming completes → user approves design
+2. Create initiative (if scope warrants it) via `sf_initiative_create`
+3. Create epic(s) via `sf_epic_create`
+4. Create stories with acceptance criteria via `sf_story_create`
+5. Optionally create tech-spec/PRD docs via `sf_doc_write` (scoped to epic)
+6. For complex multi-step stories: invoke `writing-plans` to produce granular implementation steps, then save via `sf_plan_save`. For simple stories: write the plan directly via `sf_plan_save`.
+
+When work has natural phases (e.g., OIDC first, SAML second), create **separate epics per phase** with stories scoped to each. This allows independent tracking, estimation, and completion.
+
+**Do NOT save to `docs/plans/`.** The brainstorming output becomes specflow artifacts directly.
+
+If brainstorming is NOT available, follow the same flow yourself — the discovery steps are not optional just because the skill isn't loaded.
+
+### Resolving Open Questions
+
+**When open questions exist — whether from discovery, from `sf_questions`, or from the user asking you to resolve them — use `AskUserQuestion` to ask them interactively.** Do NOT just list questions as text output. Each question should be asked via the tool so the user can answer directly.
+
+- Ask questions in batches of 1-4 (the tool's limit) grouped by topic
+- After each batch of answers, resolve them in specflow via `sf_question_resolve`
+- Continue until all questions are resolved before creating artifacts or starting implementation
+- If the user explicitly says "ask the open questions", this is your cue to use `AskUserQuestion` — not to print a markdown list
 
 ## Starting Work
 

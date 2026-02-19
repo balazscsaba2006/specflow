@@ -190,6 +190,9 @@ func printInitiativeStatus(i *models.Initiative) error {
 	if len(i.OpenQuestions) > 0 {
 		fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(i.OpenQuestions))
 	}
+	if len(i.ResolvedQuestions) > 0 {
+		fmt.Printf("%s  %d\n", ui.Label("Resolved Qs:"), len(i.ResolvedQuestions))
+	}
 	return nil
 }
 
@@ -221,6 +224,9 @@ func printEpicStatus(e *models.Epic) error {
 	if len(e.OpenQuestions) > 0 {
 		fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(e.OpenQuestions))
 	}
+	if len(e.ResolvedQuestions) > 0 {
+		fmt.Printf("%s  %d\n", ui.Label("Resolved Qs:"), len(e.ResolvedQuestions))
+	}
 	return nil
 }
 
@@ -248,6 +254,9 @@ func printStoryStatus(slug string) error {
 		}
 		if len(st.OpenQuestions) > 0 {
 			fmt.Printf("%s  %d\n", ui.Label("Open Qs:"), len(st.OpenQuestions))
+		}
+		if len(st.ResolvedQuestions) > 0 {
+			fmt.Printf("%s  %d\n", ui.Label("Resolved Qs:"), len(st.ResolvedQuestions))
 		}
 		if len(st.Assumptions) > 0 {
 			fmt.Printf("%s  %d\n", ui.Label("Assumptions:"), len(st.Assumptions))

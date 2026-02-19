@@ -45,7 +45,8 @@ type Document struct {
 	Epic          string    `yaml:"epic,omitempty"`
 	Created       time.Time `yaml:"created"`
 	Updated       time.Time `yaml:"updated"`
-	OpenQuestions []string  `yaml:"open_questions,omitempty"`
+	OpenQuestions     []string           `yaml:"open_questions,omitempty"`
+	ResolvedQuestions []ResolvedQuestion `yaml:"resolved_questions,omitempty"`
 
 	Body string `yaml:"-"`
 }

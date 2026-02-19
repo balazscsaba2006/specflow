@@ -34,9 +34,10 @@ type Epic struct {
 	Updated       time.Time `yaml:"updated"`
 	Phases        []Phase   `yaml:"phases,omitempty"`
 	Fidelity      string    `yaml:"fidelity,omitempty"`
-	OpenQuestions []string  `yaml:"open_questions,omitempty"`
-	NonGoals      []string  `yaml:"non_goals,omitempty"`
-	Decisions     []string  `yaml:"decisions,omitempty"`
+	OpenQuestions     []string           `yaml:"open_questions,omitempty"`
+	ResolvedQuestions []ResolvedQuestion `yaml:"resolved_questions,omitempty"`
+	NonGoals          []string           `yaml:"non_goals,omitempty"`
+	Decisions         []string           `yaml:"decisions,omitempty"`
 
 	Body string `yaml:"-"`
 }

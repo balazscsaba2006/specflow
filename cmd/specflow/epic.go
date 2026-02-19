@@ -168,6 +168,7 @@ func newEpicShowCmd() *cobra.Command {
 					fmt.Printf("  - %s\n", q)
 				}
 			}
+			printResolvedQuestions(e.ResolvedQuestions)
 			if len(e.Decisions) > 0 {
 				fmt.Println("Decisions:")
 				for _, d := range e.Decisions {

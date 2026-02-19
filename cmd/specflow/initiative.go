@@ -135,6 +135,7 @@ func newInitiativeShowCmd() *cobra.Command {
 					fmt.Printf("  - %s\n", q)
 				}
 			}
+			printResolvedQuestions(i.ResolvedQuestions)
 			if len(i.Epics) > 0 {
 				fmt.Println("Epics:")
 				for _, e := range i.Epics {

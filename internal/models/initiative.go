@@ -27,7 +27,8 @@ type Initiative struct {
 	Epics           []string  `yaml:"epics,omitempty"`
 	Goal            string    `yaml:"goal"`
 	SuccessCriteria []string  `yaml:"success_criteria,omitempty"`
-	OpenQuestions   []string  `yaml:"open_questions,omitempty"`
+	OpenQuestions     []string           `yaml:"open_questions,omitempty"`
+	ResolvedQuestions []ResolvedQuestion `yaml:"resolved_questions,omitempty"`
 
 	Body string `yaml:"-"`
 }
