@@ -103,7 +103,8 @@ Everything upward is optional:
 | `specflow import` | | Import an existing markdown file as an artifact |
 | `specflow mode` | | Show or set project mode (`fast` / `careful`) |
 | `specflow template` | `tmpl` | List, override, and reset templates |
-| `specflow mcp` | | Start MCP server on stdio for Claude Code |
+| `specflow sync` | | Update the installed Claude Code skill from the current binary |
+| `specflow mcp` | | Start MCP server on stdio for Claude Code (auto-syncs skill) |
 | `specflow version` | | Print version information |
 
 Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `set`. See the [CLI Reference](docs/cli-reference.md) for full details.
@@ -313,7 +314,7 @@ Resolution order: `.specflow/templates/<name>.md` (project override) → embedde
 
 `specflow init --with-claude` installs a Claude Code skill to `.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: context building, quality gates, verification loops, and working style conventions. It teaches Claude Code how to orchestrate `sf_*` tools in the right sequence.
 
-The skill source is embedded in the binary (`templates/skill.md`). Edit the installed skill directly at `.claude/skills/specflow/SKILL.md` to customize the workflow for your project.
+The skill source is embedded in the binary (`templates/skill.md`). The installed skill is **automatically synced** from the binary every time the MCP server starts (`specflow mcp`), so upgrading the binary is all you need to get the latest workflow. You can also sync manually with `specflow sync`.
 
 ## Documentation
 

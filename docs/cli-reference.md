@@ -894,6 +894,18 @@ Delete a template override, reverting to the embedded default.
 
 ---
 
+## sync
+
+```
+specflow sync
+```
+
+Update the installed Claude Code skill (`.claude/skills/specflow/SKILL.md`) from the embedded template in the current binary. Use this after upgrading specflow to get the latest workflow skill.
+
+Note: `specflow mcp` performs this sync automatically on startup, so manual use is rarely needed.
+
+---
+
 ## mcp
 
 ```
@@ -901,5 +913,7 @@ specflow mcp
 ```
 
 Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.mcp.json`.
+
+On startup, the MCP server automatically syncs the installed Claude Code skill from the binary's embedded template (if `.claude/skills/specflow/SKILL.md` exists). This ensures the skill stays up to date when the binary is upgraded.
 
 The MCP server exposes 33 tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.
