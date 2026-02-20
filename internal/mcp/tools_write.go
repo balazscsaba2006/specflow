@@ -25,7 +25,9 @@ Before creating, challenge the scope:
 - What's the minimum viable version?
 - What dependencies does this create across the project?
 
-Ask these questions conversationally before writing the initiative. Be direct, not diplomatic. If the scope is too vague, say so.`,
+Ask these questions conversationally before writing the initiative. Be direct, not diplomatic. If the scope is too vague, say so.
+
+Always populate open_questions with anything uncertain or unresolved — open questions are a feature, not a gap.`,
 	}, s.handleInitiativeCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -39,7 +41,9 @@ Before creating:
 - Flag architectural implications the user might be overlooking.
 - If there are multiple valid approaches, present options with trade-offs.
 
-An epic should be shippable independently. If it's not, it might need to be split or reconsidered.`,
+An epic should be shippable independently. If it's not, it might need to be split or reconsidered.
+
+Always populate open_questions with anything uncertain or unresolved — open questions are a feature, not a gap.`,
 	}, s.handleEpicCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -52,7 +56,9 @@ Before creating:
 - Does this story have clear "done" criteria?
 - If the acceptance criteria need a paragraph to explain, the story is too big.
 
-Stories can be standalone, under an epic, or under an initiative>epic. Require: title, acceptance criteria. Everything else is optional.`,
+Stories can be standalone, under an epic, or under an initiative>epic. Require: title, acceptance criteria. Everything else is optional.
+
+Always populate open_questions with anything uncertain or unresolved — open questions are a feature, not a gap.`,
 	}, s.handleStoryCreate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
@@ -77,7 +83,9 @@ When creating a tech spec:
 - Flag when a pattern choice has non-obvious downstream consequences.
 - Constraints section must be explicit — implicit constraints cause drift.
 
-Act as a CPO/principal engineer reviewing the document. Be direct about gaps.`,
+Act as a CPO/principal engineer reviewing the document. Be direct about gaps.
+
+Always populate open_questions with anything uncertain or unresolved — open questions are a feature, not a gap.`,
 	}, s.handleDocWrite)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
