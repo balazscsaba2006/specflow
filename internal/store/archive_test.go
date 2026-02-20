@@ -92,18 +92,20 @@ func TestArchiveEpic(t *testing.T) {
 		epicStatus     string
 		storyStatuses  map[string]string
 		force          bool
+		compact        bool
 		withExecs      bool
 		wantErr        string
 		wantStoryCount int
 		wantExecCount  int
 	}{
 		{
-			name:       "successful archive of completed epic",
+			name:       "successful archive of completed epic with compact",
 			epicStatus: models.EpicStatusCompleted,
 			storyStatuses: map[string]string{
 				"story-a": models.StoryStatusDone,
 				"story-b": models.StoryStatusDone,
 			},
+			compact:        true,
 			withExecs:      true,
 			wantStoryCount: 2,
 			wantExecCount:  2,
@@ -114,6 +116,7 @@ func TestArchiveEpic(t *testing.T) {
 			storyStatuses: map[string]string{
 				"story-a": models.StoryStatusDone,
 			},
+			compact:        true,
 			wantStoryCount: 1,
 			wantExecCount:  0,
 		},
@@ -141,6 +144,16 @@ func TestArchiveEpic(t *testing.T) {
 				"story-a": models.StoryStatusInProgress,
 			},
 			force:          true,
+			compact:        true,
+			wantStoryCount: 1,
+		},
+		{
+			name:       "archive without compact preserves body",
+			epicStatus: models.EpicStatusCompleted,
+			storyStatuses: map[string]string{
+				"story-a": models.StoryStatusDone,
+			},
+			compact:        false,
 			wantStoryCount: 1,
 		},
 	}
@@ -155,7 +168,7 @@ func TestArchiveEpic(t *testing.T) {
 				}
 			}
 
-			summary, err := s.ArchiveEpic("test-epic", tt.force)
+			summary, err := s.ArchiveEpic("test-epic", tt.force, tt.compact)
 
 			if tt.wantErr != "" {
 				if err == nil {
@@ -188,13 +201,10 @@ func TestArchiveEpic(t *testing.T) {
 				t.Error("IsArchived returned false after archive")
 			}
 
-			// Archived epic should have no body and status=archived.
+			// Archived epic status should be archived.
 			archivedEpic, loadErr := s.LoadArchivedEpic("test-epic")
 			if loadErr != nil {
 				t.Fatalf("loading archived epic: %v", loadErr)
-			}
-			if archivedEpic.Body != "" {
-				t.Errorf("archived epic body should be empty, got %q", archivedEpic.Body)
 			}
 			if archivedEpic.Status != models.EpicStatusArchived {
 				t.Errorf("archived epic status: got %q, want %q", archivedEpic.Status, models.EpicStatusArchived)
@@ -203,17 +213,30 @@ func TestArchiveEpic(t *testing.T) {
 				t.Error("archived epic phases should be preserved")
 			}
 
-			// Archived stories should have no body but keep acceptance criteria.
+			// Check body based on compact flag.
+			if tt.compact {
+				if archivedEpic.Body != "" {
+					t.Errorf("archived epic body should be empty with compact, got %q", archivedEpic.Body)
+				}
+			} else {
+				if archivedEpic.Body == "" {
+					t.Error("archived epic body should be preserved without compact")
+				}
+			}
+
 			for slug := range tt.storyStatuses {
 				archivedSt, stErr := s.LoadArchivedStory(slug, "test-epic")
 				if stErr != nil {
 					t.Fatalf("loading archived story %q: %v", slug, stErr)
 				}
-				if archivedSt.Body != "" {
-					t.Errorf("archived story %q body should be empty, got %q", slug, archivedSt.Body)
-				}
 				if len(archivedSt.Acceptance) == 0 {
 					t.Errorf("archived story %q acceptance criteria should be preserved", slug)
+				}
+				if tt.compact && archivedSt.Body != "" {
+					t.Errorf("archived story %q body should be empty with compact, got %q", slug, archivedSt.Body)
+				}
+				if !tt.compact && archivedSt.Body == "" {
+					t.Errorf("archived story %q body should be preserved without compact", slug)
 				}
 			}
 
@@ -241,7 +264,7 @@ func TestArchiveEpic_NonExistent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := s.ArchiveEpic("nonexistent", false)
+	_, err := s.ArchiveEpic("nonexistent", false, false)
 	if err == nil {
 		t.Fatal("expected error for non-existent epic")
 	}
@@ -252,11 +275,11 @@ func TestArchiveEpic_AlreadyArchived(t *testing.T) {
 		"story-a": models.StoryStatusDone,
 	})
 
-	if _, err := s.ArchiveEpic("test-epic", false); err != nil {
+	if _, err := s.ArchiveEpic("test-epic", false, false); err != nil {
 		t.Fatalf("first archive: %v", err)
 	}
 
-	_, err := s.ArchiveEpic("test-epic", false)
+	_, err := s.ArchiveEpic("test-epic", false, false)
 	if err == nil {
 		t.Fatal("expected error for already-archived epic")
 	}
@@ -282,7 +305,7 @@ func TestArchiveEpic_DocsPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := s.ArchiveEpic("test-epic", false); err != nil {
+	if _, err := s.ArchiveEpic("test-epic", false, false); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
 
@@ -316,7 +339,7 @@ func TestListArchivedEpics(t *testing.T) {
 		t.Errorf("expected 0 archived epics, got %d", len(epics))
 	}
 
-	if _, archErr := s.ArchiveEpic("test-epic", false); archErr != nil {
+	if _, archErr := s.ArchiveEpic("test-epic", false, false); archErr != nil {
 		t.Fatal(archErr)
 	}
 
@@ -338,7 +361,7 @@ func TestListArchivedStories(t *testing.T) {
 		"story-b": models.StoryStatusDone,
 	})
 
-	if _, err := s.ArchiveEpic("test-epic", false); err != nil {
+	if _, err := s.ArchiveEpic("test-epic", false, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -363,7 +386,7 @@ func TestIsArchived(t *testing.T) {
 		t.Error("nonexistent epic should not be archived")
 	}
 
-	if _, err := s.ArchiveEpic("test-epic", false); err != nil {
+	if _, err := s.ArchiveEpic("test-epic", false, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -402,7 +425,7 @@ func setupInitiativeArchiveTest(t *testing.T, iniStatus string, epicSlugs []stri
 			if err := s.SaveEpic(ep); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := s.ArchiveEpic(slug, true); err != nil {
+			if _, err := s.ArchiveEpic(slug, true, false); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -489,7 +512,7 @@ func TestArchiveInitiative(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := setupInitiativeArchiveTest(t, tt.iniStatus, tt.epicSlugs, tt.epicStatuses, tt.archiveEpics)
 
-			summary, err := s.ArchiveInitiative("test-initiative", tt.force)
+			summary, err := s.ArchiveInitiative("test-initiative", tt.force, true)
 
 			if tt.wantErr != "" {
 				if err == nil {
@@ -541,7 +564,7 @@ func TestArchiveInitiative_NonExistent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := s.ArchiveInitiative("nonexistent", false)
+	_, err := s.ArchiveInitiative("nonexistent", false, false)
 	if err == nil {
 		t.Fatal("expected error for non-existent initiative")
 	}
@@ -550,11 +573,11 @@ func TestArchiveInitiative_NonExistent(t *testing.T) {
 func TestArchiveInitiative_AlreadyArchived(t *testing.T) {
 	s := setupInitiativeArchiveTest(t, models.InitiativeStatusCompleted, nil, map[string]string{}, map[string]bool{})
 
-	if _, err := s.ArchiveInitiative("test-initiative", false); err != nil {
+	if _, err := s.ArchiveInitiative("test-initiative", false, false); err != nil {
 		t.Fatalf("first archive: %v", err)
 	}
 
-	_, err := s.ArchiveInitiative("test-initiative", false)
+	_, err := s.ArchiveInitiative("test-initiative", false, false)
 	if err == nil {
 		t.Fatal("expected error for already-archived initiative")
 	}
@@ -575,7 +598,7 @@ func TestListArchivedInitiatives(t *testing.T) {
 		t.Errorf("expected 0 archived initiatives, got %d", len(initiatives))
 	}
 
-	if _, archErr := s.ArchiveInitiative("test-initiative", false); archErr != nil {
+	if _, archErr := s.ArchiveInitiative("test-initiative", false, false); archErr != nil {
 		t.Fatal(archErr)
 	}
 

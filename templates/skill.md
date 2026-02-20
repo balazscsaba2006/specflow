@@ -91,9 +91,10 @@ If the `superpowers:brainstorming` skill is available, it drives steps 1-5. The 
 1. Brainstorming completes → user approves design
 2. Create initiative (if scope warrants it) via `sf_initiative_create`
 3. Create epic(s) via `sf_epic_create`
-4. Create stories with acceptance criteria via `sf_story_create`
-5. Optionally create tech-spec/PRD docs via `sf_doc_write` (scoped to epic)
-6. For complex multi-step stories: invoke `writing-plans` to produce granular implementation steps, then save via `sf_plan_save`. For simple stories: write the plan directly via `sf_plan_save`.
+4. Create stories with acceptance criteria via `sf_story_create` (created in `draft` status)
+5. **Transition stories to `planned`** via `sf_story_update(status="planned")` — stories are ready for implementation once created with clear acceptance criteria. Don't leave them in `draft` unless they genuinely need further refinement.
+6. Optionally create tech-spec/PRD docs via `sf_doc_write` (scoped to epic)
+7. For complex multi-step stories: invoke `writing-plans` to produce granular implementation steps, then save via `sf_plan_save`. For simple stories: write the plan directly via `sf_plan_save`.
 
 When work has natural phases (e.g., OIDC first, SAML second), create **separate epics per phase** with stories scoped to each. This allows independent tracking, estimation, and completion.
 
@@ -114,7 +115,8 @@ If brainstorming is NOT available, follow the same flow yourself — the discove
 
 1. **Identify the story.** Use `sf_story_next` to get the highest-priority unblocked story, or work on the story the user specifies.
 2. **Build context.** ALWAYS call `sf_context_build` before starting implementation. This assembles conventions, epic context, PRD content, plan, and open items into a single layered prompt.
-3. **Check gates before implementing:**
+3. **Ensure story is `planned`.** Stories are created in `draft` status. Before implementation can start, the story must be in `planned`. If the story is in `draft`, transition it: `sf_story_update(slug, status="planned")`. The state machine enforces `draft → planned → in_progress` — you cannot skip `planned`.
+4. **Check gates before implementing:**
    - **Open questions?** Resolve them with the user. Update via `sf_question_resolve`. Do not proceed with unresolved questions that affect implementation.
    - **Blockers?** If `blocked_by` stories aren't done, surface this to the user. Don't work around blockers silently.
    - **No plan?** Create one with `sf_plan_save` before writing code. Plans should include approach, key decisions, and what's NOT being done. **Then get user approval** (see Plan Approval section).
@@ -148,16 +150,46 @@ This gate applies to ALL stories — epic-scoped and standalone. Skip only if th
 
 **CRITICAL: Every story MUST go through this lifecycle. Do NOT skip steps.**
 
+### Story Status Lifecycle
+
 ```
-sf_execution_start → write code → run tests → sf_execution_complete → sf_verify_save → sf_story_update(done) → commit
+draft → planned → in_progress → done
 ```
 
-1. **BEFORE writing any code:** Call `sf_execution_start`. This records the git baseline and auto-sets the story to `in_progress`. **Note the execution_id from the response** — you'll need it for completion.
-2. Implement according to the plan and acceptance criteria from context.
-3. Run tests and check acceptance criteria in the foreground.
-4. **AFTER verification passes:** Complete the lifecycle, then commit everything together (see below).
+- `sf_story_create` → status is `draft`
+- `sf_story_update(status="planned")` → ready for implementation
+- `sf_execution_start` → auto-sets to `in_progress` (only works from `planned`)
+- `sf_story_update(status="done")` → story complete
+
+**The state machine enforces valid transitions.** `sf_execution_start` will silently fail to update status if the story isn't in `planned`. Always check and transition status before starting execution.
+
+### Implementation Steps
+
+1. **Ensure story is `planned`** (see Starting Work above). If still in `draft`, call `sf_story_update(status="planned")` first.
+2. **Call `sf_execution_start`.** This records the git baseline and auto-sets the story to `in_progress`. **Note the execution_id from the response** — you'll need it for completion.
+3. Implement according to the plan and acceptance criteria from context.
+4. Run tests and check acceptance criteria in the foreground.
+5. **AFTER verification passes:** Complete the lifecycle, then commit everything together (see below).
 
 **Never leave a story in `in_progress` or `verifying` at the end of a session.** Either complete the full cycle or explicitly note what's unfinished.
+
+### Resuming Paused Work
+
+When `sf_execution_pause` was used in a previous session, the story is back in `planned` and handover notes are saved. To resume:
+
+1. **Call `sf_context_build`** — this surfaces the handover notes from the paused execution (what was done, what remains, blockers).
+2. **Call `sf_execution_start`** — creates a new execution. The paused execution stays as history. The story moves to `in_progress` again.
+3. **Continue implementation** from where the handover notes left off.
+
+The paused execution's handover notes are your briefing — read them before writing code.
+
+### Retroactive Completion
+
+When work is already done (committed before the story was created, or done in a previous session without lifecycle tracking):
+
+1. **Transition through statuses** — you must still follow valid transitions: `draft → planned`, then `planned → in_progress`, then `in_progress → done`. Call `sf_story_update` for each step.
+2. **Skip execution/verification** — no need to create an execution or verify if the work is already committed and tested.
+3. **Don't pretend** — this is bookkeeping. The point is to get the status accurate, not to retroactively fabricate an execution trail.
 
 ## Story Completion (Background)
 

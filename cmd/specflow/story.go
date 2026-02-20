@@ -49,6 +49,7 @@ func newStoryCmd() *cobra.Command {
 	cmd.AddCommand(newStorySetCmd())
 	cmd.AddCommand(newStoryNextCmd())
 	cmd.AddCommand(newStoryArchiveCmd())
+	cmd.AddCommand(newStoryUnarchiveCmd())
 
 	return cmd
 }
@@ -396,14 +397,15 @@ func newStoryNextCmd() *cobra.Command {
 func newStoryArchiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "archive <slug>",
-		Short: "Archive a standalone story (move to archive, compact file)",
-		Long:  "Moves a standalone story to .specflow/archive/stories/, compacts to frontmatter-only tombstone, and moves execution directories.",
+		Short: "Archive a standalone story (move to archive)",
+		Long:  "Moves a standalone story to .specflow/archive/stories/ and moves execution directories.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			force, _ := cmd.Flags().GetBool("force")
+			compact, _ := cmd.Flags().GetBool("compact")
 
-			summary, err := appStore.ArchiveStory(slug, force)
+			summary, err := appStore.ArchiveStory(slug, force, compact)
 			if err != nil {
 				return err
 			}
@@ -415,8 +417,28 @@ func newStoryArchiveCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Bool("force", false, "Archive even if story isn't in done status")
+	cmd.Flags().Bool("compact", false, "Strip markdown body (compact to frontmatter-only tombstone)")
 
 	return cmd
+}
+
+func newStoryUnarchiveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "unarchive <slug>",
+		Short: "Restore an archived standalone story to active state",
+		Long:  "Moves a standalone story from .specflow/archive/stories/ back to .specflow/stories/, setting status to planned.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			summary, err := appStore.UnarchiveStory(args[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Unarchived story %q (%d executions restored)\n",
+				summary.Title, summary.ExecutionCount)
+			return nil
+		},
+	}
 }
 
 // allBlockersDone checks if all slugs in blockedBy correspond to stories

@@ -98,6 +98,8 @@ Captures current git ref as baseline. Plans should include file-level detail: wh
 		Name: "sf_execution_start",
 		Description: `Start a new execution for a story. Captures current git ref as baseline, creates an execution record, and sets story status to in_progress.
 
+The story must be in planned or in_progress status. If the story is in draft, transition it to planned first via sf_story_update.
+
 Call this BEFORE starting to implement a story.`,
 	}, s.handleExecutionStart)
 
@@ -140,18 +142,39 @@ The question is moved from open_questions to resolved_questions with the answer 
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_epic_archive",
-		Description: `Archive an epic. Moves the epic tree to the archive directory, compacts story and epic files to frontmatter-only tombstones, and moves execution directories. Use force to bypass status checks.`,
+		Description: `Archive an epic. Moves the epic tree to the archive directory and moves execution directories.
+
+IMPORTANT: Do NOT use force unless the user explicitly asks for it. Without force, archiving requires the epic to be completed and all stories done — if it refuses, surface the reason to the user and let them decide. Using force silently can archive incomplete work.`,
 	}, s.handleEpicArchive)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_story_archive",
-		Description: `Archive a standalone story. Moves it to the archive directory, compacts to a frontmatter-only tombstone, and moves execution directories. Only works for standalone stories (not under an epic). Use force to bypass status checks.`,
+		Description: `Archive a standalone story. Moves it to the archive directory and moves execution directories. Only works for standalone stories (not under an epic).
+
+IMPORTANT: Do NOT use force unless the user explicitly asks for it. Without force, archiving requires the story to be done — if it refuses, surface the reason to the user and let them decide. Using force silently can archive incomplete work.`,
 	}, s.handleStoryArchive)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name:        "sf_initiative_archive",
-		Description: `Archive an initiative. Moves it to the archive directory, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed (unless force is used).`,
+		Description: `Archive an initiative. Moves it to the archive directory. All linked epics must be archived or completed.
+
+IMPORTANT: Do NOT use force unless the user explicitly asks for it. Without force, archiving requires all linked epics to be archived or completed — if it refuses, surface the reason to the user and let them decide. Using force silently can archive initiatives with active work.`,
 	}, s.handleInitiativeArchive)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_epic_unarchive",
+		Description: `Restore an archived epic back to active state. Moves the epic, its stories, docs, and executions from the archive back to the active directory. The epic status is set to on_hold; stories keep their original status.`,
+	}, s.handleEpicUnarchive)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_story_unarchive",
+		Description: `Restore an archived standalone story back to active state. Moves it from the archive back to the active directory with status set to planned. Only works for standalone stories.`,
+	}, s.handleStoryUnarchive)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name:        "sf_initiative_unarchive",
+		Description: `Restore an archived initiative back to active state. Moves it from the archive back to the active directory with status set to on_hold. Does NOT automatically unarchive linked epics — those must be unarchived separately if needed.`,
+	}, s.handleInitiativeUnarchive)
 }
 
 // --- Input structs ---
@@ -269,18 +292,33 @@ type questionResolveInput struct {
 }
 
 type epicArchiveInput struct {
-	Slug  string `json:"slug" jsonschema:"epic slug to archive"`
-	Force bool   `json:"force,omitempty" jsonschema:"archive even if not completed/done"`
+	Slug    string `json:"slug" jsonschema:"epic slug to archive"`
+	Force   bool   `json:"force,omitempty" jsonschema:"archive even if not completed/done. Only use when the user explicitly requests it."`
+	Compact bool   `json:"compact,omitempty" jsonschema:"strip markdown bodies (compact to frontmatter-only tombstones). Default false preserves full content."`
 }
 
 type storyArchiveInput struct {
-	Slug  string `json:"slug" jsonschema:"standalone story slug to archive"`
-	Force bool   `json:"force,omitempty" jsonschema:"archive even if not done"`
+	Slug    string `json:"slug" jsonschema:"standalone story slug to archive"`
+	Force   bool   `json:"force,omitempty" jsonschema:"archive even if not done. Only use when the user explicitly requests it."`
+	Compact bool   `json:"compact,omitempty" jsonschema:"strip markdown body (compact to frontmatter-only tombstone). Default false preserves full content."`
 }
 
 type initiativeArchiveInput struct {
-	Slug  string `json:"slug" jsonschema:"initiative slug to archive"`
-	Force bool   `json:"force,omitempty" jsonschema:"archive even if not completed"`
+	Slug    string `json:"slug" jsonschema:"initiative slug to archive"`
+	Force   bool   `json:"force,omitempty" jsonschema:"archive even if not completed. Only use when the user explicitly requests it."`
+	Compact bool   `json:"compact,omitempty" jsonschema:"strip markdown body (compact to frontmatter-only tombstone). Default false preserves full content."`
+}
+
+type epicUnarchiveInput struct {
+	Slug string `json:"slug" jsonschema:"epic slug to unarchive"`
+}
+
+type storyUnarchiveInput struct {
+	Slug string `json:"slug" jsonschema:"standalone story slug to unarchive"`
+}
+
+type initiativeUnarchiveInput struct {
+	Slug string `json:"slug" jsonschema:"initiative slug to unarchive"`
 }
 
 // --- Handlers ---
@@ -568,6 +606,19 @@ func (s *Server) handleExecutionStart(_ context.Context, _ *mcp.CallToolRequest,
 		return errResult("story is required"), nil, nil
 	}
 
+	// Validate story status before creating execution.
+	st, err := s.findStory(input.Story)
+	if err != nil {
+		return errResultf("story %q not found: %v", input.Story, err), nil, nil
+	}
+	if st.Status != models.StoryStatusPlanned && st.Status != models.StoryStatusInProgress {
+		return errResultf(
+			"story %q has status %q — must be `planned` or `in_progress` to start execution. "+
+				"Transition with sf_story_update(status=\"planned\") first.",
+			input.Story, st.Status,
+		), nil, nil
+	}
+
 	gitRef, _ := git.CurrentRef() // best-effort; non-fatal if not in a git repo
 
 	e := &models.Execution{
@@ -586,14 +637,9 @@ func (s *Server) handleExecutionStart(_ context.Context, _ *mcp.CallToolRequest,
 	}
 
 	// Set story status to in_progress if not already.
-	st, err := s.findStory(input.Story)
-	if err == nil && st.Status != models.StoryStatusInProgress {
+	if st.Status != models.StoryStatusInProgress {
 		st.Status = models.StoryStatusInProgress
-		if saveErr := s.store.SaveStory(st); saveErr != nil {
-			// Non-fatal: execution was created, but status update failed.
-			// Log the error but don't fail the tool call.
-			_ = saveErr
-		}
+		_ = s.store.SaveStory(st)
 	}
 
 	_ = s.store.AppendLog(models.LogEntry{
@@ -907,7 +953,7 @@ func (s *Server) handleEpicArchive(_ context.Context, _ *mcp.CallToolRequest, in
 		return errResult("slug is required"), nil, nil
 	}
 
-	summary, err := s.store.ArchiveEpic(input.Slug, input.Force)
+	summary, err := s.store.ArchiveEpic(input.Slug, input.Force, input.Compact)
 	if err != nil {
 		return errResultf("archiving epic: %v", err), nil, nil
 	}
@@ -917,7 +963,7 @@ func (s *Server) handleEpicArchive(_ context.Context, _ *mcp.CallToolRequest, in
 		Entity: input.Slug,
 	})
 
-	return textResult(fmt.Sprintf("Archived epic **%s** (`%s`)\n%d stories, %d executions compacted",
+	return textResult(fmt.Sprintf("Archived epic **%s** (`%s`)\n%d stories, %d executions moved",
 		summary.EpicTitle, summary.EpicSlug, summary.StoryCount, summary.ExecutionCount)), nil, nil
 }
 
@@ -926,7 +972,7 @@ func (s *Server) handleStoryArchive(_ context.Context, _ *mcp.CallToolRequest, i
 		return errResult("slug is required"), nil, nil
 	}
 
-	summary, err := s.store.ArchiveStory(input.Slug, input.Force)
+	summary, err := s.store.ArchiveStory(input.Slug, input.Force, input.Compact)
 	if err != nil {
 		return errResultf("archiving story: %v", err), nil, nil
 	}
@@ -945,7 +991,7 @@ func (s *Server) handleInitiativeArchive(_ context.Context, _ *mcp.CallToolReque
 		return errResult("slug is required"), nil, nil
 	}
 
-	summary, err := s.store.ArchiveInitiative(input.Slug, input.Force)
+	summary, err := s.store.ArchiveInitiative(input.Slug, input.Force, input.Compact)
 	if err != nil {
 		return errResultf("archiving initiative: %v", err), nil, nil
 	}
@@ -956,6 +1002,63 @@ func (s *Server) handleInitiativeArchive(_ context.Context, _ *mcp.CallToolReque
 	})
 
 	return textResult(fmt.Sprintf("Archived initiative **%s** (`%s`)\n%d linked epics",
+		summary.Title, summary.Slug, summary.EpicCount)), nil, nil
+}
+
+func (s *Server) handleEpicUnarchive(_ context.Context, _ *mcp.CallToolRequest, input epicUnarchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.UnarchiveEpic(input.Slug)
+	if err != nil {
+		return errResultf("unarchiving epic: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogEpicUnarchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Unarchived epic **%s** (`%s`)\n%d stories, %d executions restored\nEpic status set to **on_hold**",
+		summary.EpicTitle, summary.EpicSlug, summary.StoryCount, summary.ExecutionCount)), nil, nil
+}
+
+func (s *Server) handleStoryUnarchive(_ context.Context, _ *mcp.CallToolRequest, input storyUnarchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.UnarchiveStory(input.Slug)
+	if err != nil {
+		return errResultf("unarchiving story: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogStoryUnarchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Unarchived story **%s** (`%s`)\n%d executions restored\nStatus set to **planned**",
+		summary.Title, summary.Slug, summary.ExecutionCount)), nil, nil
+}
+
+func (s *Server) handleInitiativeUnarchive(_ context.Context, _ *mcp.CallToolRequest, input initiativeUnarchiveInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	summary, err := s.store.UnarchiveInitiative(input.Slug)
+	if err != nil {
+		return errResultf("unarchiving initiative: %v", err), nil, nil
+	}
+
+	_ = s.store.AppendLog(models.LogEntry{
+		Type:   models.LogInitiativeUnarchived,
+		Entity: input.Slug,
+	})
+
+	return textResult(fmt.Sprintf("Unarchived initiative **%s** (`%s`)\n%d linked epics\nStatus set to **on_hold**",
 		summary.Title, summary.Slug, summary.EpicCount)), nil, nil
 }
 

@@ -26,6 +26,7 @@ func newInitiativeCmd() *cobra.Command {
 	cmd.AddCommand(newInitiativeEditCmd())
 	cmd.AddCommand(newInitiativeSetCmd())
 	cmd.AddCommand(newInitiativeArchiveCmd())
+	cmd.AddCommand(newInitiativeUnarchiveCmd())
 
 	return cmd
 }
@@ -242,8 +243,9 @@ func newInitiativeArchiveCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			force, _ := cmd.Flags().GetBool("force")
+			compact, _ := cmd.Flags().GetBool("compact")
 
-			summary, err := appStore.ArchiveInitiative(slug, force)
+			summary, err := appStore.ArchiveInitiative(slug, force, compact)
 			if err != nil {
 				return err
 			}
@@ -255,6 +257,26 @@ func newInitiativeArchiveCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Bool("force", false, "Archive even if initiative/epics aren't in completed/archived status")
+	cmd.Flags().Bool("compact", false, "Strip markdown body (compact to frontmatter-only tombstone)")
 
 	return cmd
+}
+
+func newInitiativeUnarchiveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "unarchive <slug>",
+		Short: "Restore an archived initiative to active state",
+		Long:  "Moves the initiative from .specflow/archive/initiatives/ back to .specflow/initiatives/, setting status to on_hold.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			summary, err := appStore.UnarchiveInitiative(args[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Unarchived initiative %q (%d linked epics)\n",
+				summary.Title, summary.EpicCount)
+			return nil
+		},
+	}
 }

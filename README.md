@@ -188,9 +188,12 @@ specflow init --with-claude
 | `sf_execution_pause` | Pause execution with handover notes for session continuity |
 | `sf_verify_save` | Save verification results |
 | `sf_question_resolve` | Mark an open question as resolved |
-| `sf_epic_archive` | Archive an epic (compact + move to archive) |
-| `sf_story_archive` | Archive a standalone story (compact + move to archive) |
-| `sf_initiative_archive` | Archive an initiative (compact + move to archive) |
+| `sf_epic_archive` | Archive an epic (move to archive, optional compaction) |
+| `sf_story_archive` | Archive a standalone story (move to archive, optional compaction) |
+| `sf_initiative_archive` | Archive an initiative (move to archive, optional compaction) |
+| `sf_epic_unarchive` | Restore an archived epic to active state |
+| `sf_story_unarchive` | Restore an archived standalone story to active state |
+| `sf_initiative_unarchive` | Restore an archived initiative to active state |
 
 See the [MCP Tools Reference](docs/mcp-tools.md) for parameters and response formats.
 

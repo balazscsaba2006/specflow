@@ -26,6 +26,7 @@ func newEpicCmd() *cobra.Command {
 	cmd.AddCommand(newEpicEditCmd())
 	cmd.AddCommand(newEpicSetCmd())
 	cmd.AddCommand(newEpicArchiveCmd())
+	cmd.AddCommand(newEpicUnarchiveCmd())
 
 	return cmd
 }
@@ -282,21 +283,42 @@ func newEpicArchiveCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			force, _ := cmd.Flags().GetBool("force")
+			compact, _ := cmd.Flags().GetBool("compact")
 
-			summary, err := appStore.ArchiveEpic(slug, force)
+			summary, err := appStore.ArchiveEpic(slug, force, compact)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Archived epic %q (%d stories, %d executions compacted)\n",
+			fmt.Printf("Archived epic %q (%d stories, %d executions moved)\n",
 				summary.EpicTitle, summary.StoryCount, summary.ExecutionCount)
 			return nil
 		},
 	}
 
 	cmd.Flags().Bool("force", false, "Archive even if epic/stories aren't in completed/done status")
+	cmd.Flags().Bool("compact", false, "Strip markdown bodies (compact to frontmatter-only tombstones)")
 
 	return cmd
+}
+
+func newEpicUnarchiveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "unarchive <slug>",
+		Short: "Restore an archived epic to active state",
+		Long:  "Moves the epic tree from .specflow/archive/ back to .specflow/epics/, setting status to on_hold.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			summary, err := appStore.UnarchiveEpic(args[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Unarchived epic %q (%d stories, %d executions restored)\n",
+				summary.EpicTitle, summary.StoryCount, summary.ExecutionCount)
+			return nil
+		},
+	}
 }
 
 // checkPRDGate returns an error if careful mode requires a PRD before activating an epic.

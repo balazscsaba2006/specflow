@@ -33,7 +33,10 @@ const (
 	LogPlanSaved            = "plan.saved"
 	LogQuestionResolved     = "question.resolved"
 	LogExecutionPaused      = "execution.paused"
-	LogEpicArchived         = "epic.archived"
-	LogStoryArchived        = "story.archived"
-	LogInitiativeArchived   = "initiative.archived"
+	LogEpicArchived           = "epic.archived"
+	LogStoryArchived          = "story.archived"
+	LogInitiativeArchived     = "initiative.archived"
+	LogEpicUnarchived         = "epic.unarchived"
+	LogStoryUnarchived        = "story.unarchived"
+	LogInitiativeUnarchived   = "initiative.unarchived"
 )

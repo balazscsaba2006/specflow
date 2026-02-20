@@ -183,7 +183,7 @@ Quick-update a single field on an initiative without opening an editor.
 specflow initiative archive <slug> [flags]
 ```
 
-Archive an initiative. Moves the initiative to `.specflow/archive/initiatives/`, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed unless `--force` is used.
+Archive an initiative. Moves the initiative to `.specflow/archive/initiatives/`. All linked epics must be archived or completed unless `--force` is used. Body is preserved by default.
 
 **Arguments:**
 
@@ -196,6 +196,23 @@ Archive an initiative. Moves the initiative to `.specflow/archive/initiatives/`,
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--force` | bool | `false` | Archive even if initiative/epics aren't in completed/archived status |
+| `--compact` | bool | `false` | Strip markdown body (compact to frontmatter-only tombstone) |
+
+---
+
+### initiative unarchive
+
+```
+specflow initiative unarchive <slug>
+```
+
+Restore an archived initiative back to active state. Moves it from `.specflow/archive/initiatives/` back to `.specflow/initiatives/`, setting status to `on_hold`. Does not automatically unarchive linked epics.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `slug` | yes | Slug of the initiative to unarchive |
 
 ---
 
@@ -297,7 +314,7 @@ Quick-update a single field on an epic without opening an editor.
 specflow epic archive <slug> [flags]
 ```
 
-Archive a completed epic. Moves the epic tree to `.specflow/archive/`, compacts story and epic files to frontmatter-only tombstones (body stripped), and moves execution directories. The original markdown body is lost from the archived files but preserved in git history.
+Archive a completed epic. Moves the epic tree to `.specflow/archive/` and moves execution directories. Bodies are preserved by default.
 
 By default, requires the epic to have status `completed` and all stories to have status `done`. Use `--force` to bypass these checks.
 
@@ -312,6 +329,23 @@ By default, requires the epic to have status `completed` and all stories to have
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--force` | bool | `false` | Archive even if epic/stories aren't in completed/done status |
+| `--compact` | bool | `false` | Strip markdown bodies (compact to frontmatter-only tombstones) |
+
+---
+
+### epic unarchive
+
+```
+specflow epic unarchive <slug>
+```
+
+Restore an archived epic back to active state. Moves the epic tree from `.specflow/archive/` back to `.specflow/epics/`, setting status to `on_hold`. Stories keep their original status. Docs and executions are moved back to their original locations.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `slug` | yes | Slug of the epic to unarchive |
 
 ---
 
@@ -461,7 +495,7 @@ Recommend the next story to work on. Filters to stories with status `planned` wh
 specflow story archive <slug> [flags]
 ```
 
-Archive a standalone story. Moves the story file to `.specflow/archive/stories/`, compacts to a frontmatter-only tombstone (body stripped), and moves execution directories to `.specflow/archive/executions/`.
+Archive a standalone story. Moves the story file to `.specflow/archive/stories/` and moves execution directories to `.specflow/archive/executions/`. Body is preserved by default.
 
 By default, requires the story to have status `done`. Use `--force` to bypass. Only works on standalone stories (not epic-scoped).
 
@@ -476,6 +510,23 @@ By default, requires the story to have status `done`. Use `--force` to bypass. O
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--force` | bool | `false` | Archive even if story isn't in done status |
+| `--compact` | bool | `false` | Strip markdown body (compact to frontmatter-only tombstone) |
+
+---
+
+### story unarchive
+
+```
+specflow story unarchive <slug>
+```
+
+Restore an archived standalone story back to active state. Moves it from `.specflow/archive/stories/` back to `.specflow/stories/`, setting status to `planned`. Executions are moved back to their original location.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `slug` | yes | Slug of the standalone story to unarchive |
 
 ---
 

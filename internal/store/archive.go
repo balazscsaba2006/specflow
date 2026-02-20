@@ -16,10 +16,10 @@ type ArchiveSummary struct {
 	ExecutionCount int
 }
 
-// ArchiveEpic moves an epic and its stories/executions to the archive directory,
-// compacting story and epic files to frontmatter-only tombstones.
+// ArchiveEpic moves an epic and its stories/executions to the archive directory.
+// If compact is true, story and epic bodies are stripped (frontmatter-only tombstones).
 // If force is false, the epic must be completed and all stories must be done.
-func (s *Store) ArchiveEpic(slug string, force bool) (*ArchiveSummary, error) {
+func (s *Store) ArchiveEpic(slug string, force, compact bool) (*ArchiveSummary, error) {
 	if s.IsArchived(slug) {
 		return nil, fmt.Errorf("epic %q is already archived", slug)
 	}
@@ -39,7 +39,7 @@ func (s *Store) ArchiveEpic(slug string, force bool) (*ArchiveSummary, error) {
 		StoryCount: len(stories),
 	}
 
-	if stErr := s.archiveStories(slug, stories); stErr != nil {
+	if stErr := s.archiveStories(slug, stories, compact); stErr != nil {
 		return nil, stErr
 	}
 
@@ -53,7 +53,7 @@ func (s *Store) ArchiveEpic(slug string, force bool) (*ArchiveSummary, error) {
 		return nil, docErr
 	}
 
-	if epErr := s.archiveEpicFile(slug, epic); epErr != nil {
+	if epErr := s.archiveEpicFile(slug, epic, compact); epErr != nil {
 		return nil, epErr
 	}
 
@@ -107,13 +107,16 @@ func (s *Store) prepareArchiveDirs(slug string) error {
 	return nil
 }
 
-// archiveStories compacts and writes stories to the archive.
-func (s *Store) archiveStories(epicSlug string, stories []*models.Story) error {
+// archiveStories writes stories to the archive. If compact is true, bodies are stripped.
+func (s *Store) archiveStories(epicSlug string, stories []*models.Story, compact bool) error {
 	for _, st := range stories {
-		st.Body = ""
+		body := st.Body
+		if compact {
+			body = ""
+		}
 		dst := s.archiveStoryFile(epicSlug, st.Slug)
-		if err := WriteFile(dst, st, ""); err != nil {
-			return fmt.Errorf("compacting story %q: %w", st.Slug, err)
+		if err := WriteFile(dst, st, body); err != nil {
+			return fmt.Errorf("archiving story %q: %w", st.Slug, err)
 		}
 	}
 	return nil
@@ -153,12 +156,15 @@ func (s *Store) archiveDocs(slug string) error {
 	return nil
 }
 
-// archiveEpicFile compacts and writes the epic file to the archive.
-func (s *Store) archiveEpicFile(slug string, epic *models.Epic) error {
-	epic.Body = ""
+// archiveEpicFile writes the epic file to the archive. If compact is true, the body is stripped.
+func (s *Store) archiveEpicFile(slug string, epic *models.Epic, compact bool) error {
+	body := epic.Body
+	if compact {
+		body = ""
+	}
 	epic.Status = models.EpicStatusArchived
-	if err := WriteFile(s.ArchiveEpicFile(slug), epic, ""); err != nil {
-		return fmt.Errorf("compacting epic %q: %w", slug, err)
+	if err := WriteFile(s.ArchiveEpicFile(slug), epic, body); err != nil {
+		return fmt.Errorf("archiving epic %q: %w", slug, err)
 	}
 	return nil
 }
@@ -244,6 +250,26 @@ func (s *Store) ListArchivedStories(epicSlug string) ([]*models.Story, error) {
 	return stories, nil
 }
 
+// unarchiveExecutions moves execution directories back from the archive for the given stories.
+func (s *Store) unarchiveExecutions(stories []*models.Story) (int, error) {
+	var count int
+	for _, st := range stories {
+		srcExec := s.ArchiveStoryExecutionsDir(st.Slug)
+		if _, err := os.Stat(srcExec); err != nil {
+			continue
+		}
+		if err := s.EnsureDir(s.ExecutionsDir()); err != nil {
+			return 0, fmt.Errorf("creating executions dir: %w", err)
+		}
+		dstExec := s.StoryExecutionsDir(st.Slug)
+		if err := os.Rename(srcExec, dstExec); err != nil {
+			return 0, fmt.Errorf("restoring executions for %q: %w", st.Slug, err)
+		}
+		count++
+	}
+	return count, nil
+}
+
 // archiveStoryFile returns the archive path for a story file.
 func (s *Store) archiveStoryFile(epicSlug, storySlug string) string {
 	return fmt.Sprintf("%s/%s.md", s.ArchiveEpicStoriesDir(epicSlug), storySlug)
@@ -256,10 +282,10 @@ type InitiativeArchiveSummary struct {
 	EpicCount int // number of linked epics (informational)
 }
 
-// ArchiveInitiative moves an initiative to the archive directory,
-// compacting it to a frontmatter-only tombstone.
+// ArchiveInitiative moves an initiative to the archive directory.
+// If compact is true, the body is stripped (frontmatter-only tombstone).
 // If force is false, the initiative must be completed and all linked epics must be archived or completed.
-func (s *Store) ArchiveInitiative(slug string, force bool) (*InitiativeArchiveSummary, error) {
+func (s *Store) ArchiveInitiative(slug string, force, compact bool) (*InitiativeArchiveSummary, error) {
 	if s.IsInitiativeArchived(slug) {
 		return nil, fmt.Errorf("initiative %q is already archived", slug)
 	}
@@ -299,11 +325,14 @@ func (s *Store) ArchiveInitiative(slug string, force bool) (*InitiativeArchiveSu
 		return nil, fmt.Errorf("creating archive directory: %w", err)
 	}
 
-	// Compact and write to archive.
-	ini.Body = ""
+	// Write to archive (strip body only if compact).
+	body := ini.Body
+	if compact {
+		body = ""
+	}
 	ini.Status = models.InitiativeStatusArchived
-	if err := WriteFile(s.ArchiveInitiativeFile(slug), ini, ""); err != nil {
-		return nil, fmt.Errorf("compacting initiative %q: %w", slug, err)
+	if err := WriteFile(s.ArchiveInitiativeFile(slug), ini, body); err != nil {
+		return nil, fmt.Errorf("archiving initiative %q: %w", slug, err)
 	}
 
 	if err := os.RemoveAll(s.InitiativeDir(slug)); err != nil {
@@ -368,8 +397,8 @@ type StoryArchiveSummary struct {
 }
 
 // ArchiveStory moves a standalone story and its executions to the archive.
-// If force is false, the story must have status done.
-func (s *Store) ArchiveStory(slug string, force bool) (*StoryArchiveSummary, error) {
+// If compact is true, the body is stripped. If force is false, the story must have status done.
+func (s *Store) ArchiveStory(slug string, force, compact bool) (*StoryArchiveSummary, error) {
 	if s.IsStoryArchived(slug) {
 		return nil, fmt.Errorf("story %q is already archived", slug)
 	}
@@ -392,11 +421,14 @@ func (s *Store) ArchiveStory(slug string, force bool) (*StoryArchiveSummary, err
 		return nil, fmt.Errorf("creating archive stories dir: %w", err)
 	}
 
-	// Compact and write to archive.
-	st.Body = ""
+	// Write to archive (strip body only if compact).
+	body := st.Body
+	if compact {
+		body = ""
+	}
 	dst := s.ArchiveStandaloneStoryFile(slug)
-	if err := WriteFile(dst, st, ""); err != nil {
-		return nil, fmt.Errorf("compacting story %q: %w", slug, err)
+	if err := WriteFile(dst, st, body); err != nil {
+		return nil, fmt.Errorf("archiving story %q: %w", slug, err)
 	}
 
 	// Move executions.
@@ -457,4 +489,143 @@ func (s *Store) ListArchivedStandaloneStories() ([]*models.Story, error) {
 		stories = append(stories, st)
 	}
 	return stories, nil
+}
+
+// UnarchiveEpic restores an epic and its stories/executions from the archive.
+// The epic is set to on_hold status; stories keep their original status.
+func (s *Store) UnarchiveEpic(slug string) (*ArchiveSummary, error) {
+	if !s.IsArchived(slug) {
+		return nil, fmt.Errorf("epic %q is not in the archive", slug)
+	}
+	if _, err := os.Stat(s.EpicDir(slug)); err == nil {
+		return nil, fmt.Errorf("epic %q already exists in active epics — cannot unarchive", slug)
+	}
+
+	epic, err := s.LoadArchivedEpic(slug)
+	if err != nil {
+		return nil, fmt.Errorf("unarchiving epic: %w", err)
+	}
+	epic.Status = models.EpicStatusOnHold
+
+	stories, err := s.ListArchivedStories(slug)
+	if err != nil {
+		return nil, fmt.Errorf("unarchiving epic: listing stories: %w", err)
+	}
+
+	for _, d := range []string{s.EpicDir(slug), s.EpicStoriesDir(slug)} {
+		if err := s.EnsureDir(d); err != nil {
+			return nil, fmt.Errorf("creating epic directory: %w", err)
+		}
+	}
+
+	if err := WriteFile(s.EpicFile(slug), epic, epic.Body); err != nil {
+		return nil, fmt.Errorf("restoring epic %q: %w", slug, err)
+	}
+
+	for _, st := range stories {
+		dst := s.StoryFile(st.Slug, slug)
+		if err := WriteFile(dst, st, st.Body); err != nil {
+			return nil, fmt.Errorf("restoring story %q: %w", st.Slug, err)
+		}
+	}
+
+	// Move docs back if they exist.
+	srcDocs := s.ArchiveEpicDocsDir(slug)
+	if info, statErr := os.Stat(srcDocs); statErr == nil && info.IsDir() {
+		if err := os.Rename(srcDocs, s.EpicDocsDir(slug)); err != nil {
+			return nil, fmt.Errorf("restoring docs for epic %q: %w", slug, err)
+		}
+	}
+
+	// Move executions back.
+	execCount, execErr := s.unarchiveExecutions(stories)
+	if execErr != nil {
+		return nil, execErr
+	}
+
+	if err := os.RemoveAll(s.ArchiveEpicDir(slug)); err != nil {
+		return nil, fmt.Errorf("removing archive epic dir: %w", err)
+	}
+
+	return &ArchiveSummary{
+		EpicSlug:       slug,
+		EpicTitle:      epic.Title,
+		StoryCount:     len(stories),
+		ExecutionCount: execCount,
+	}, nil
+}
+
+// UnarchiveStory restores a standalone story from the archive.
+// The story status is set to planned.
+func (s *Store) UnarchiveStory(slug string) (*StoryArchiveSummary, error) {
+	if !s.IsStoryArchived(slug) {
+		return nil, fmt.Errorf("story %q is not in the archive", slug)
+	}
+	if _, err := os.Stat(s.StoryFile(slug, "")); err == nil {
+		return nil, fmt.Errorf("story %q already exists in active stories — cannot unarchive", slug)
+	}
+
+	st, err := s.LoadArchivedStandaloneStory(slug)
+	if err != nil {
+		return nil, fmt.Errorf("unarchiving story: %w", err)
+	}
+	st.Status = models.StoryStatusPlanned
+
+	if err := s.EnsureDir(s.StandaloneStoriesDir()); err != nil {
+		return nil, fmt.Errorf("creating stories dir: %w", err)
+	}
+
+	if err := WriteFile(s.StoryFile(slug, ""), st, st.Body); err != nil {
+		return nil, fmt.Errorf("restoring story %q: %w", slug, err)
+	}
+
+	execCount, execErr := s.unarchiveExecutions([]*models.Story{st})
+	if execErr != nil {
+		return nil, execErr
+	}
+
+	if err := os.Remove(s.ArchiveStandaloneStoryFile(slug)); err != nil {
+		return nil, fmt.Errorf("removing archived story file: %w", err)
+	}
+
+	return &StoryArchiveSummary{
+		Slug:           slug,
+		Title:          st.Title,
+		ExecutionCount: execCount,
+	}, nil
+}
+
+// UnarchiveInitiative restores an initiative from the archive.
+// The initiative status is set to on_hold.
+func (s *Store) UnarchiveInitiative(slug string) (*InitiativeArchiveSummary, error) {
+	if !s.IsInitiativeArchived(slug) {
+		return nil, fmt.Errorf("initiative %q is not in the archive", slug)
+	}
+	if _, err := os.Stat(s.InitiativeDir(slug)); err == nil {
+		return nil, fmt.Errorf("initiative %q already exists in active initiatives — cannot unarchive", slug)
+	}
+
+	ini, err := s.LoadArchivedInitiative(slug)
+	if err != nil {
+		return nil, fmt.Errorf("unarchiving initiative: %w", err)
+	}
+	ini.Status = models.InitiativeStatusOnHold
+
+	if err := s.EnsureDir(s.InitiativeDir(slug)); err != nil {
+		return nil, fmt.Errorf("creating initiative dir: %w", err)
+	}
+
+	if err := WriteFile(s.InitiativeFile(slug), ini, ini.Body); err != nil {
+		return nil, fmt.Errorf("restoring initiative %q: %w", slug, err)
+	}
+
+	if err := os.RemoveAll(s.ArchiveInitiativeDir(slug)); err != nil {
+		return nil, fmt.Errorf("removing archive initiative dir: %w", err)
+	}
+
+	return &InitiativeArchiveSummary{
+		Slug:      slug,
+		Title:     ini.Title,
+		EpicCount: len(ini.Epics),
+	}, nil
 }

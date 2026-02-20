@@ -424,6 +424,8 @@ Save an implementation plan for a story.
 
 Start a new execution for a story. Captures current git ref as baseline, creates an execution record, and sets story status to `in_progress`.
 
+The story must be in `planned` or `in_progress` status. If the story is in `draft`, transition it to `planned` first via `sf_story_update`. Returns an error if the story is in any other status.
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `story` | string | yes | Story slug |
@@ -499,12 +501,13 @@ Auto-detects entity type by trying initiative, epic, story, project-level doc, t
 
 ### sf_epic_archive
 
-Archive an epic. Moves the epic tree to `.specflow/archive/`, compacts story and epic files to frontmatter-only tombstones, and moves execution directories. By default, requires the epic to be completed and all stories to be done.
+Archive an epic. Moves the epic tree to `.specflow/archive/` and moves execution directories. By default, requires the epic to be completed and all stories to be done. Bodies are preserved unless `compact` is set.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Epic slug to archive |
-| `force` | bool | no | Archive even if not completed/done |
+| `force` | bool | no | Archive even if not completed/done. **Only use when the user explicitly requests it.** |
+| `compact` | bool | no | Strip markdown bodies (compact to frontmatter-only tombstones). Default false preserves full content. |
 
 **Response:** Confirmation with epic title, story count, and execution count.
 
@@ -512,12 +515,13 @@ Archive an epic. Moves the epic tree to `.specflow/archive/`, compacts story and
 
 ### sf_story_archive
 
-Archive a standalone story. Moves it to `.specflow/archive/stories/`, compacts to a frontmatter-only tombstone, and moves execution directories. Only works for standalone stories (not under an epic).
+Archive a standalone story. Moves it to `.specflow/archive/stories/` and moves execution directories. Only works for standalone stories (not under an epic). Body is preserved unless `compact` is set.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Standalone story slug to archive |
-| `force` | bool | no | Archive even if not done |
+| `force` | bool | no | Archive even if not done. **Only use when the user explicitly requests it.** |
+| `compact` | bool | no | Strip markdown body (compact to frontmatter-only tombstone). Default false preserves full content. |
 
 **Response:** Confirmation with story title and execution count.
 
@@ -525,11 +529,48 @@ Archive a standalone story. Moves it to `.specflow/archive/stories/`, compacts t
 
 ### sf_initiative_archive
 
-Archive an initiative. Moves it to `.specflow/archive/initiatives/`, compacting to a frontmatter-only tombstone. All linked epics must be archived or completed unless force is used.
+Archive an initiative. Moves it to `.specflow/archive/initiatives/`. All linked epics must be archived or completed unless force is used. Body is preserved unless `compact` is set.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Initiative slug to archive |
-| `force` | bool | no | Archive even if not completed |
+| `force` | bool | no | Archive even if not completed. **Only use when the user explicitly requests it.** |
+| `compact` | bool | no | Strip markdown body (compact to frontmatter-only tombstone). Default false preserves full content. |
 
 **Response:** Confirmation with initiative title and linked epic count.
+
+---
+
+### sf_epic_unarchive
+
+Restore an archived epic back to active state. Moves the epic, its stories, docs, and executions from the archive back to the active directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Epic slug to unarchive |
+
+**Response:** Confirmation with epic title, story count, and execution count. Epic status is set to `on_hold`; stories keep their original status.
+
+---
+
+### sf_story_unarchive
+
+Restore an archived standalone story back to active state. Moves it from the archive back to the active directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Standalone story slug to unarchive |
+
+**Response:** Confirmation with story title and execution count. Status is set to `planned`.
+
+---
+
+### sf_initiative_unarchive
+
+Restore an archived initiative back to active state. Moves it from the archive back to the active directory. Does not automatically unarchive linked epics.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Initiative slug to unarchive |
+
+**Response:** Confirmation with initiative title and linked epic count. Status is set to `on_hold`.
