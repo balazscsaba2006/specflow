@@ -95,7 +95,7 @@ func newUpdateCmd() *cobra.Command {
 
 			fmt.Printf("Updated to v%s\n", latestVersion)
 			fmt.Println()
-			fmt.Println("Run 'specflow sync' in your projects to update the Claude Code skill.")
+			fmt.Println("The Claude Code skill will auto-sync next time the MCP server starts.")
 			return nil
 		},
 	}
