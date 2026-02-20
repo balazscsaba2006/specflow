@@ -16,10 +16,11 @@ You have access to specflow MCP tools (`sf_*`) for managing development artifact
 When the user describes a new feature or system:
 1. **Brainstorming drives discovery** — explore, question, propose approaches, iterate, get approval.
 2. **After design approval, create specflow artifacts** — initiative/epic/stories, NOT `docs/plans/` files.
-3. **Per-story plans:**
-   - **Complex multi-step stories:** Invoke `writing-plans` to produce granular TDD steps, then save the output via `sf_plan_save` (not to `docs/plans/`).
-   - **Simple stories:** Write the plan directly via `sf_plan_save` using writing-plans style (TDD steps) without invoking the skill.
-4. **Get plan approval** before implementation (see Plan Approval section).
+3. **Per-story plans — use plan mode for approval:**
+   - **Complex multi-step stories:** `EnterPlanMode` → invoke `writing-plans` for granular TDD steps → write to plan file → `sf_plan_save` → `ExitPlanMode` for user approval.
+   - **Simple stories:** `EnterPlanMode` → write the plan directly using writing-plans style (TDD steps) → `sf_plan_save` → `ExitPlanMode` for user approval.
+   - **Do NOT save to `docs/plans/`.** The plan lives in the Claude plan file (for approval + compaction persistence) and specflow (for cross-session context).
+4. **Plan approval happens via `ExitPlanMode`** — the user sees the full plan (see Plan Approval section).
 
 The epic/stories define WHAT to build (acceptance criteria, priorities, phases, dependencies). The plan defines HOW to build each story (step-by-step implementation).
 
@@ -94,7 +95,7 @@ If the `superpowers:brainstorming` skill is available, it drives steps 1-5. The 
 4. Create stories with acceptance criteria via `sf_story_create` (created in `draft` status)
 5. **Transition stories to `planned`** via `sf_story_update(status="planned")` — stories are ready for implementation once created with clear acceptance criteria. Don't leave them in `draft` unless they genuinely need further refinement.
 6. Optionally create tech-spec/PRD docs via `sf_doc_write` (scoped to epic)
-7. For complex multi-step stories: invoke `writing-plans` to produce granular implementation steps, then save via `sf_plan_save`. For simple stories: write the plan directly via `sf_plan_save`.
+7. For each story that needs a plan: `EnterPlanMode` → design the plan (invoke `writing-plans` for complex stories, write directly for simple ones) → save via `sf_plan_save` → `ExitPlanMode` for user approval.
 
 When work has natural phases (e.g., OIDC first, SAML second), create **separate epics per phase** with stories scoped to each. This allows independent tracking, estimation, and completion.
 
@@ -119,7 +120,7 @@ If brainstorming is NOT available, follow the same flow yourself — the discove
 4. **Check gates before implementing:**
    - **Open questions?** Resolve them with the user. Update via `sf_question_resolve`. Do not proceed with unresolved questions that affect implementation.
    - **Blockers?** If `blocked_by` stories aren't done, surface this to the user. Don't work around blockers silently.
-   - **No plan?** Create one with `sf_plan_save` before writing code. Plans should include approach, key decisions, and what's NOT being done. **Then get user approval** (see Plan Approval section).
+   - **No plan?** Enter plan mode (`EnterPlanMode`), design the plan, save with `sf_plan_save`, and get user approval via `ExitPlanMode` (see Plan Approval section).
 
 ## Creating Artifacts
 
@@ -133,16 +134,28 @@ When creating epics, stories, docs, or decisions via `sf_*_create` / `sf_doc_wri
 
 **CRITICAL: Never start implementation without user approval of the plan.**
 
-After saving a plan via `sf_plan_save`:
+Use Claude Code's built-in plan mode so the user can see and approve the **full plan** — not just a summary. The plan file also survives context compaction, keeping the plan visible even in long sessions.
 
-1. **Present the plan** to the user — summarize the approach, key files, and what's NOT being done.
-2. **Ask for approval** using `AskUserQuestion` with options:
-   - **Approve** — proceed to implementation
-   - **Request changes** — user provides feedback, update the plan, ask again
-   - **Reject** — stop, discuss alternative approaches
-3. **Only after approval:** proceed to `sf_execution_start` and implementation.
+### Flow
 
-This gate applies to ALL stories — epic-scoped and standalone. Skip only if the user explicitly says "just do it" or the change is trivial (< 5 lines, obvious fix).
+1. **Enter plan mode** via `EnterPlanMode` before designing the plan.
+2. **In plan mode:** explore the codebase, design the approach, write the full plan to the plan file. For complex stories, invoke `writing-plans` to produce granular TDD steps.
+3. **Save to specflow** via `sf_plan_save` — this persists the plan for `sf_context_build` context assembly, verification, and scope drift checks across sessions.
+4. **Exit plan mode** via `ExitPlanMode` — the user sees the full plan and can approve, request changes, or reject.
+5. **Only after approval:** proceed to `sf_execution_start` and implementation.
+
+### Dual storage
+
+The plan is saved in two places for different purposes:
+- **Claude plan file** (`~/.claude/plans/...`) — visible to the user for approval, survives context compaction. Ephemeral (current session).
+- **specflow plan** (via `sf_plan_save`) — persistent across sessions. Powers `sf_context_build` (Layer 4), `sf_scope_drift`, and verification.
+
+### When to skip plan mode
+
+- The change is trivial (< 5 lines, obvious fix)
+- The user explicitly says "just do it" or "skip the plan"
+
+This gate applies to ALL non-trivial stories — epic-scoped and standalone.
 
 ## Implementing
 
@@ -161,7 +174,7 @@ draft → planned → in_progress → done
 - `sf_execution_start` → auto-sets to `in_progress` (only works from `planned`)
 - `sf_story_update(status="done")` → story complete
 
-**The state machine enforces valid transitions.** `sf_execution_start` will silently fail to update status if the story isn't in `planned`. Always check and transition status before starting execution.
+**The state machine enforces valid transitions.** `sf_execution_start` will reject stories not in `planned` or `in_progress` with a clear error. Always check and transition status before starting execution.
 
 ### Implementation Steps
 
