@@ -894,6 +894,20 @@ Delete a template override, reverting to the embedded default.
 
 ---
 
+## update
+
+```
+specflow update [flags]
+```
+
+Download the latest release from GitHub and replace the current binary.
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--force` | bool | `false` | Re-download even if already on the latest version |
+
+---
+
 ## sync
 
 ```

@@ -33,7 +33,9 @@ type ghAsset struct {
 }
 
 func newUpdateCmd() *cobra.Command {
-	return &cobra.Command{
+	var force bool
+
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update specflow to the latest release",
 		Long:  "Downloads the latest release from GitHub and replaces the current binary.",
@@ -55,8 +57,8 @@ func newUpdateCmd() *cobra.Command {
 			}
 
 			latestVersion := strings.TrimPrefix(release.TagName, "v")
-			if latestVersion == version {
-				fmt.Printf("Already up to date (v%s)\n", version)
+			if latestVersion == version && !force {
+				fmt.Printf("Already up to date (v%s). Use --force to re-download.\n", version)
 				return nil
 			}
 
@@ -99,6 +101,10 @@ func newUpdateCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "Re-download even if already on the latest version")
+
+	return cmd
 }
 
 func fetchLatestRelease() (*ghRelease, error) {
