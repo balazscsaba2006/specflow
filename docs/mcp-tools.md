@@ -354,7 +354,7 @@ Create a new story.
 
 ### sf_story_update
 
-Update an existing story. Only provided fields are updated. Assumptions and open_questions are appended (not replaced).
+Update an existing story. Only provided fields are updated. Labels and blocked_by replace existing values. Acceptance, non_goals, doc_refs, assumptions, and open_questions are appended to existing values.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -363,12 +363,50 @@ Update an existing story. Only provided fields are updated. Assumptions and open
 | `priority` | string | no | New priority |
 | `labels` | []string | no | Replace labels |
 | `blocked_by` | []string | no | Replace blocked_by list |
+| `acceptance` | []string | no | Append to acceptance criteria |
+| `non_goals` | []string | no | Append to non-goals |
+| `doc_refs` | []string | no | Append to doc refs |
 | `assumptions` | []string | no | Append to assumptions |
 | `open_questions` | []string | no | Append to open_questions |
 
 Auto-searches across all epics and standalone stories.
 
 **Response:** Confirmation with updated status and priority.
+
+---
+
+### sf_epic_update
+
+Update an existing epic. Only provided fields are updated. Status, fidelity, and initiative replace existing values. Non_goals, open_questions, and decisions are appended.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Epic slug |
+| `status` | string | no | New status: `draft`, `active`, `completed`, `on_hold`, `archived` |
+| `fidelity` | string | no | Target fidelity: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
+| `initiative` | string | no | Parent initiative slug |
+| `non_goals` | []string | no | Append to non-goals |
+| `open_questions` | []string | no | Append to open_questions |
+| `decisions` | []string | no | Append decision slugs |
+
+**Response:** Confirmation with updated status.
+
+---
+
+### sf_initiative_update
+
+Update an existing initiative. Only provided fields are updated. Status and goal replace existing values. Success_criteria, epics, and open_questions are appended.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `slug` | string | yes | Initiative slug |
+| `status` | string | no | New status: `active`, `completed`, `on_hold`, `archived` |
+| `goal` | string | no | Updated goal statement |
+| `success_criteria` | []string | no | Append to success criteria |
+| `epics` | []string | no | Append epic slugs |
+| `open_questions` | []string | no | Append to open_questions |
+
+**Response:** Confirmation with updated status.
 
 ---
 

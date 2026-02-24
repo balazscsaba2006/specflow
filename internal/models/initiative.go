@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Initiative statuses
 const (
@@ -15,6 +18,16 @@ var ValidInitiativeStatuses = []string{
 	InitiativeStatusCompleted,
 	InitiativeStatusOnHold,
 	InitiativeStatusArchived,
+}
+
+// ValidateInitiativeStatus checks if the given status is a valid initiative status.
+func ValidateInitiativeStatus(status string) error {
+	for _, s := range ValidInitiativeStatuses {
+		if s == status {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid initiative status %q", status)
 }
 
 type Initiative struct {

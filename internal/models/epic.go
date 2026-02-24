@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Epic statuses
 const (
@@ -17,6 +20,16 @@ var ValidEpicStatuses = []string{
 	EpicStatusCompleted,
 	EpicStatusOnHold,
 	EpicStatusArchived,
+}
+
+// ValidateEpicStatus checks if the given status is a valid epic status.
+func ValidateEpicStatus(status string) error {
+	for _, s := range ValidEpicStatuses {
+		if s == status {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid epic status %q", status)
 }
 
 type Phase struct {

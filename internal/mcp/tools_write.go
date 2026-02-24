@@ -63,8 +63,18 @@ Always populate open_questions with anything uncertain or unresolved — open qu
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name: "sf_story_update",
-		Description: `Update an existing story's status, priority, labels, blocked_by, assumptions, or open_questions. Only provided fields are updated. Assumptions and open_questions are appended to existing values. Validates state transitions (e.g., can't go from draft to done directly).`,
+		Description: `Update an existing story's fields. Only provided fields are updated. Labels and blocked_by replace existing values. Acceptance, non_goals, doc_refs, assumptions, and open_questions are appended to existing values. Validates state transitions (e.g., can't go from draft to done directly).`,
 	}, s.handleStoryUpdate)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name: "sf_epic_update",
+		Description: `Update an existing epic's fields. Only provided fields are updated. Status, fidelity, and initiative replace existing values. Non_goals, open_questions, and decisions are appended to existing values. Status is validated against allowed values (draft, active, completed, on_hold, archived).`,
+	}, s.handleEpicUpdate)
+
+	mcp.AddTool(s.mcpSrv, &mcp.Tool{
+		Name: "sf_initiative_update",
+		Description: `Update an existing initiative's fields. Only provided fields are updated. Status and goal replace existing values. Success_criteria, epics, and open_questions are appended to existing values. Status is validated against allowed values (active, completed, on_hold, archived).`,
+	}, s.handleInitiativeUpdate)
 
 	mcp.AddTool(s.mcpSrv, &mcp.Tool{
 		Name: "sf_doc_write",
@@ -228,8 +238,30 @@ type storyUpdateInput struct {
 	Priority      string   `json:"priority,omitempty" jsonschema:"new priority"`
 	Labels        []string `json:"labels,omitempty" jsonschema:"replacement labels"`
 	BlockedBy     []string `json:"blocked_by,omitempty" jsonschema:"replacement blocked_by"`
+	Acceptance    []string `json:"acceptance,omitempty" jsonschema:"acceptance criteria to append"`
+	NonGoals      []string `json:"non_goals,omitempty" jsonschema:"non-goals to append"`
+	DocRefs       []string `json:"doc_refs,omitempty" jsonschema:"doc refs to append"`
 	Assumptions   []string `json:"assumptions,omitempty" jsonschema:"assumptions to append"`
 	OpenQuestions []string `json:"open_questions,omitempty" jsonschema:"open questions to append"`
+}
+
+type epicUpdateInput struct {
+	Slug          string   `json:"slug" jsonschema:"epic slug to update"`
+	Status        string   `json:"status,omitempty" jsonschema:"new status: draft, active, completed, on_hold, archived"`
+	Fidelity      string   `json:"fidelity,omitempty" jsonschema:"target fidelity: prototype, personal-tool, alpha, beta, production"`
+	Initiative    string   `json:"initiative,omitempty" jsonschema:"parent initiative slug"`
+	NonGoals      []string `json:"non_goals,omitempty" jsonschema:"non-goals to append"`
+	OpenQuestions []string `json:"open_questions,omitempty" jsonschema:"open questions to append"`
+	Decisions     []string `json:"decisions,omitempty" jsonschema:"decision slugs to append"`
+}
+
+type initiativeUpdateInput struct {
+	Slug            string   `json:"slug" jsonschema:"initiative slug to update"`
+	Status          string   `json:"status,omitempty" jsonschema:"new status: active, completed, on_hold, archived"`
+	Goal            string   `json:"goal,omitempty" jsonschema:"updated goal statement"`
+	SuccessCriteria []string `json:"success_criteria,omitempty" jsonschema:"success criteria to append"`
+	Epics           []string `json:"epics,omitempty" jsonschema:"epic slugs to append"`
+	OpenQuestions   []string `json:"open_questions,omitempty" jsonschema:"open questions to append"`
 }
 
 type docWriteInput struct {
@@ -426,19 +458,8 @@ func (s *Server) handleStoryCreate(_ context.Context, _ *mcp.CallToolRequest, in
 		st.Title, st.Slug, st.ID, st.Priority, st.Status)), nil, nil
 }
 
-func (s *Server) handleStoryUpdate(_ context.Context, _ *mcp.CallToolRequest, input storyUpdateInput) (*mcp.CallToolResult, any, error) {
-	if input.Slug == "" {
-		return errResult("slug is required"), nil, nil
-	}
-
-	// Try to find the story — could be standalone or under an epic.
-	st, err := s.findStory(input.Slug)
-	if err != nil {
-		return errResultf("loading story %q: %v", input.Slug, err), nil, nil
-	}
-
-	oldStatus := st.Status
-
+// applyStoryUpdates applies partial update fields from input to the story.
+func applyStoryUpdates(st *models.Story, input storyUpdateInput) {
 	if input.Status != "" {
 		st.Status = input.Status
 	}
@@ -451,12 +472,36 @@ func (s *Server) handleStoryUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 	if input.BlockedBy != nil {
 		st.BlockedBy = input.BlockedBy
 	}
+	if len(input.Acceptance) > 0 {
+		st.Acceptance = append(st.Acceptance, input.Acceptance...)
+	}
+	if len(input.NonGoals) > 0 {
+		st.NonGoals = append(st.NonGoals, input.NonGoals...)
+	}
+	if len(input.DocRefs) > 0 {
+		st.DocRefs = append(st.DocRefs, input.DocRefs...)
+	}
 	if len(input.Assumptions) > 0 {
 		st.Assumptions = append(st.Assumptions, input.Assumptions...)
 	}
 	if len(input.OpenQuestions) > 0 {
 		st.OpenQuestions = append(st.OpenQuestions, input.OpenQuestions...)
 	}
+}
+
+func (s *Server) handleStoryUpdate(_ context.Context, _ *mcp.CallToolRequest, input storyUpdateInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	// Try to find the story — could be standalone or under an epic.
+	st, err := s.findStory(input.Slug)
+	if err != nil {
+		return errResultf("loading story %q: %v", input.Slug, err), nil, nil
+	}
+
+	oldStatus := st.Status
+	applyStoryUpdates(st, input)
 
 	if err := s.store.SaveStory(st); err != nil {
 		return errResultf("saving story %q: %v", input.Slug, err), nil, nil
@@ -483,6 +528,103 @@ func (s *Server) handleStoryUpdate(_ context.Context, _ *mcp.CallToolRequest, in
 	}
 
 	return textResult(msg), nil, nil
+}
+
+func (s *Server) handleEpicUpdate(_ context.Context, _ *mcp.CallToolRequest, input epicUpdateInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	e, err := s.store.LoadEpic(input.Slug)
+	if err != nil {
+		return errResultf("loading epic %q: %v", input.Slug, err), nil, nil
+	}
+
+	oldStatus := e.Status
+
+	if input.Status != "" {
+		if err := models.ValidateEpicStatus(input.Status); err != nil {
+			return errResult(err.Error()), nil, nil
+		}
+		e.Status = input.Status
+	}
+	if input.Fidelity != "" {
+		e.Fidelity = input.Fidelity
+	}
+	if input.Initiative != "" {
+		e.Initiative = input.Initiative
+	}
+	if len(input.NonGoals) > 0 {
+		e.NonGoals = append(e.NonGoals, input.NonGoals...)
+	}
+	if len(input.OpenQuestions) > 0 {
+		e.OpenQuestions = append(e.OpenQuestions, input.OpenQuestions...)
+	}
+	if len(input.Decisions) > 0 {
+		e.Decisions = append(e.Decisions, input.Decisions...)
+	}
+
+	if err := s.store.SaveEpic(e); err != nil {
+		return errResultf("saving epic %q: %v", input.Slug, err), nil, nil
+	}
+
+	if oldStatus != e.Status {
+		_ = s.store.AppendLog(models.LogEntry{
+			Type:   models.LogEpicStatusChanged,
+			Entity: e.Slug,
+			From:   oldStatus,
+			To:     e.Status,
+		})
+	}
+
+	return textResult(fmt.Sprintf("Updated epic **%s** (`%s`)\nStatus: %s", e.Title, e.Slug, e.Status)), nil, nil
+}
+
+func (s *Server) handleInitiativeUpdate(_ context.Context, _ *mcp.CallToolRequest, input initiativeUpdateInput) (*mcp.CallToolResult, any, error) {
+	if input.Slug == "" {
+		return errResult("slug is required"), nil, nil
+	}
+
+	i, err := s.store.LoadInitiative(input.Slug)
+	if err != nil {
+		return errResultf("loading initiative %q: %v", input.Slug, err), nil, nil
+	}
+
+	oldStatus := i.Status
+
+	if input.Status != "" {
+		if err := models.ValidateInitiativeStatus(input.Status); err != nil {
+			return errResult(err.Error()), nil, nil
+		}
+		i.Status = input.Status
+	}
+	if input.Goal != "" {
+		i.Goal = input.Goal
+	}
+	if len(input.SuccessCriteria) > 0 {
+		i.SuccessCriteria = append(i.SuccessCriteria, input.SuccessCriteria...)
+	}
+	if len(input.Epics) > 0 {
+		i.Epics = append(i.Epics, input.Epics...)
+	}
+	if len(input.OpenQuestions) > 0 {
+		i.OpenQuestions = append(i.OpenQuestions, input.OpenQuestions...)
+	}
+
+	if err := s.store.SaveInitiative(i); err != nil {
+		return errResultf("saving initiative %q: %v", input.Slug, err), nil, nil
+	}
+
+	if oldStatus != i.Status {
+		_ = s.store.AppendLog(models.LogEntry{
+			Type:   models.LogInitiativeStatusChanged,
+			Entity: i.Slug,
+			From:   oldStatus,
+			To:     i.Status,
+		})
+	}
+
+	return textResult(fmt.Sprintf("Updated initiative **%s** (`%s`)\nStatus: %s", i.Title, i.Slug, i.Status)), nil, nil
 }
 
 func (s *Server) handleDocWrite(_ context.Context, _ *mcp.CallToolRequest, input docWriteInput) (*mcp.CallToolResult, any, error) {
