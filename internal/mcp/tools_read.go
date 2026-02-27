@@ -6,10 +6,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/balazscsaba2006/specflow/internal/export"
 	"github.com/balazscsaba2006/specflow/internal/git"
 	"github.com/balazscsaba2006/specflow/internal/hardq"
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"gopkg.in/yaml.v3"
 )
 
 // priorityRank maps priority strings to sort order (lower = higher priority).
@@ -71,6 +73,13 @@ type reviewPromptInput struct {
 
 type epicRequiredInput struct {
 	Epic string `json:"epic" jsonschema:"epic slug"`
+}
+
+type exportInput struct {
+	Epic        string `json:"epic,omitempty" jsonschema:"Epic slug to export (provide epic or story, not both)"`
+	Story       string `json:"story,omitempty" jsonschema:"Standalone story slug to export (provide epic or story, not both)"`
+	IncludeDone *bool  `json:"include_done,omitempty" jsonschema:"Include stories with status done (default true)"`
+	IncludeBody *bool  `json:"include_body,omitempty" jsonschema:"Include markdown body content (default true)"`
 }
 
 // registerReadTools registers all read-only MCP tools on the server.
@@ -189,6 +198,11 @@ func (s *Server) registerReadTools() {
 		Name:        "sf_code_review",
 		Description: "Assembles a structured code review prompt for a story's latest execution. Loads the execution diff, story acceptance criteria, and implementation plan into a review template that checks: criteria met, planned files touched, unexpected changes, security issues, test coverage.",
 	}, s.handleCodeReview)
+
+	mcp.AddTool[exportInput, any](s.mcpSrv, &mcp.Tool{
+		Name:        "sf_export",
+		Description: "Export an epic (with stories) or a single standalone story as structured YAML data. Returns markdown with an embedded YAML code block. Use this to feed data into external systems (Jira, markdown files, etc.). Provide either epic or story parameter, not both.",
+	}, s.handleExport)
 }
 
 // --- Handlers ---
@@ -1610,4 +1624,129 @@ func (s *Server) handleDiffCheck(_ context.Context, _ *mcp.CallToolRequest, inpu
 	fmt.Fprintf(&b, "\n_%d potentially drifted stories_\n", len(drifted))
 
 	return textResult(b.String()), nil, nil
+}
+
+// --- Export handler ---
+
+// YAML-serializable types for sf_export response.
+type exportYAML struct {
+	Epic    exportEpicYAML    `yaml:"epic"`
+	Stories []exportStoryYAML `yaml:"stories"`
+}
+
+type exportEpicYAML struct {
+	Slug     string            `yaml:"slug"`
+	Title    string            `yaml:"title"`
+	Status   string            `yaml:"status"`
+	Fidelity string            `yaml:"fidelity,omitempty"`
+	Body     string            `yaml:"body,omitempty"`
+	Phases   []models.Phase    `yaml:"phases,omitempty"`
+}
+
+type exportStoryYAML struct {
+	Slug        string   `yaml:"slug"`
+	Title       string   `yaml:"title"`
+	Status      string   `yaml:"status"`
+	Priority    string   `yaml:"priority"`
+	Labels      []string `yaml:"labels,omitempty"`
+	Acceptance  []string `yaml:"acceptance,omitempty"`
+	Description string   `yaml:"description,omitempty"`
+}
+
+func boolDefault(p *bool, def bool) bool {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+
+func (s *Server) handleExport(_ context.Context, _ *mcp.CallToolRequest, input exportInput) (*mcp.CallToolResult, any, error) {
+	if input.Epic == "" && input.Story == "" {
+		return errResult("provide either epic or story parameter"), nil, nil
+	}
+	if input.Epic != "" && input.Story != "" {
+		return errResult("provide either epic or story, not both"), nil, nil
+	}
+
+	opts := export.ExportOptions{
+		IncludeDone: boolDefault(input.IncludeDone, true),
+		IncludeBody: boolDefault(input.IncludeBody, true),
+	}
+
+	// Single story export path.
+	if input.Story != "" {
+		return s.handleExportStory(input.Story, opts)
+	}
+
+	return s.handleExportEpic(input.Epic, opts)
+}
+
+func (s *Server) handleExportEpic(epicSlug string, opts export.ExportOptions) (*mcp.CallToolResult, any, error) {
+	data, err := export.ExportEpic(s.store, epicSlug, opts)
+	if err != nil {
+		return errResultf("exporting epic: %v", err), nil, nil
+	}
+
+	// Convert to YAML-serializable types.
+	yamlData := exportYAML{
+		Epic: exportEpicYAML{
+			Slug:     data.Epic.Slug,
+			Title:    data.Epic.Title,
+			Status:   data.Epic.Status,
+			Fidelity: data.Epic.Fidelity,
+			Body:     data.Epic.Body,
+			Phases:   data.Epic.Phases,
+		},
+		Stories: make([]exportStoryYAML, len(data.Stories)),
+	}
+	for i := range data.Stories {
+		yamlData.Stories[i] = toStoryYAML(data.Stories[i])
+	}
+
+	yamlBytes, err := yaml.Marshal(yamlData)
+	if err != nil {
+		return errResultf("marshaling export YAML: %v", err), nil, nil
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Export: %s\n\n", data.Epic.Title)
+	fmt.Fprintf(&b, "Exported 1 epic + %d stories.\n\n", len(data.Stories))
+	b.WriteString("```yaml\n")
+	b.Write(yamlBytes)
+	b.WriteString("```\n")
+
+	return textResult(b.String()), nil, nil
+}
+
+func (s *Server) handleExportStory(storySlug string, opts export.ExportOptions) (*mcp.CallToolResult, any, error) {
+	st, err := export.ExportStory(s.store, storySlug, opts)
+	if err != nil {
+		return errResultf("exporting story: %v", err), nil, nil
+	}
+
+	yamlBytes, err := yaml.Marshal(toStoryYAML(*st))
+	if err != nil {
+		return errResultf("marshaling export YAML: %v", err), nil, nil
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Export: %s\n\n", st.Title)
+	b.WriteString("Exported 1 story.\n\n")
+	b.WriteString("```yaml\n")
+	b.Write(yamlBytes)
+	b.WriteString("```\n")
+
+	return textResult(b.String()), nil, nil
+}
+
+func toStoryYAML(st export.StoryExport) exportStoryYAML {
+	return exportStoryYAML{
+		Slug:        st.Slug,
+		Title:       st.Title,
+		Status:      st.Status,
+		Priority:    st.Priority,
+		Labels:      st.Labels,
+		Acceptance:  st.Acceptance,
+		Description: st.Description,
+	}
 }

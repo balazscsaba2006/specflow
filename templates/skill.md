@@ -243,3 +243,64 @@ Do NOT background — keep everything in the foreground so findings are visible 
 - **Record decisions.** When a non-trivial technical choice is made during implementation, record it via `sf_decision_record`.
 - **Check scope when uncertain.** Use `sf_scope_check` against the PRD to determine whether something is in or out of scope. Don't gold-plate.
 - **Use assumptions field.** Anything you assumed but couldn't verify goes into the story's assumptions list.
+
+## Exporting to Jira
+
+When the user asks to export an epic (or stories) to Jira, follow this workflow. Requires the Atlassian MCP server to be configured.
+
+### Prerequisites
+
+Check that Atlassian MCP tools are available (`getAccessibleAtlassianResources`, `createJiraIssue`, etc.). If not available, tell the user to configure the Atlassian MCP server and fall back to markdown export via `specflow export <epic-slug>`.
+
+### Export Flow
+
+1. **Get export data.** Call `sf_export` with the epic slug (or story slug for standalone stories). Review the YAML output to understand what will be created.
+
+2. **Get Jira target.**
+   - Call `getAccessibleAtlassianResources` to get the `cloudId`.
+   - Call `getVisibleJiraProjects` to list available projects.
+   - Ask the user which project to export to via `AskUserQuestion`.
+
+3. **Confirm before creating.** Show the user a summary of what will be created:
+   - 1 Epic issue + N Story issues (or just 1 Story for standalone)
+   - Target project
+   - Ask for confirmation before proceeding.
+
+4. **Create the Jira epic.**
+   - Use `createJiraIssue` with `issueTypeName: "Epic"`.
+   - Map: `title → summary`, `description (body + acceptance) → description`.
+   - Note the returned issue key (e.g., `PROJ-123`).
+
+5. **Create stories as children.**
+   - For each story in the export, call `createJiraIssue` with:
+     - `issueTypeName: "Story"` (or ask user for preferred type)
+     - `parent: <epic-issue-key>`
+     - `summary: story.title`
+     - `description: story.description` (pre-assembled by sf_export)
+   - **Priority mapping:**
+
+     | specflow | Jira |
+     |----------|------|
+     | critical | Highest |
+     | high | High |
+     | medium | Medium |
+     | low | Low |
+
+   - If a story fails, log the error and continue with remaining stories. Do NOT stop on first failure.
+
+6. **Report results.** After all issues are created, show:
+   - Each created issue with its Jira key and link
+   - Any failures with error details
+   - Summary: "Created 1 epic + N stories in PROJECT"
+
+### Markdown Export Fallback
+
+If the user prefers markdown export (or Atlassian MCP is unavailable):
+- Run `specflow export <epic-slug>` via Bash, or
+- Call `sf_export` and write the YAML data to a file directly.
+
+### Edge Cases
+
+- **Duplicate export:** Warn the user if they're exporting an epic that may have already been exported (ask before proceeding).
+- **Empty epic:** Create the Jira epic without child stories. Inform the user.
+- **Standalone story export:** Use `sf_export` with `story` parameter instead of `epic`. Create a single Jira Story (no parent epic).

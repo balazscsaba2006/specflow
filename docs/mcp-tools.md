@@ -289,6 +289,23 @@ Diagnostic tool that assembles comprehensive story state for debugging stuck imp
 
 ---
 
+### sf_export
+
+Export an epic (with stories) or a single standalone story as structured YAML data. Returns markdown with an embedded YAML code block containing entity metadata and story details. Use for feeding data into external systems (Jira, markdown files, etc.).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `epic` | string | no* | Epic slug to export |
+| `story` | string | no* | Standalone story slug to export |
+| `include_done` | bool | no | Include stories with status `done` (default: true) |
+| `include_body` | bool | no | Include markdown body content (default: true) |
+
+*Provide either `epic` or `story`, not both.
+
+**Response:** Markdown with summary header and embedded YAML code block. Epic export includes epic metadata + ordered stories array. Story export includes single story YAML. Stories are ordered by phase position; unphased stories appear last.
+
+---
+
 ## Write Tools
 
 ### sf_initiative_create

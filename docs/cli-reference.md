@@ -908,6 +908,38 @@ Download the latest release from GitHub and replace the current binary.
 
 ---
 
+## export
+
+```
+specflow export <epic-slug> [flags]
+```
+
+Export an epic and its stories to a single human-readable markdown file. Stories are grouped under their phase headings and include status, priority, labels, body content, and acceptance criteria.
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-o`, `--output` | string | `<epic-slug>-export.md` | Output file path |
+| `--no-body` | bool | `false` | Omit markdown body content from stories |
+| `--exclude-done` | bool | `false` | Skip stories with status `done` |
+
+### Examples
+
+```bash
+# Export to default file
+specflow export user-auth
+# → Exported 1 epic + 5 stories to user-auth-export.md
+
+# Export without body content
+specflow export user-auth --no-body
+
+# Export to specific path, excluding done stories
+specflow export user-auth -o ~/exports/auth.md --exclude-done
+```
+
+---
+
 ## sync
 
 ```
