@@ -291,18 +291,28 @@ Diagnostic tool that assembles comprehensive story state for debugging stuck imp
 
 ### sf_export
 
-Export an epic (with stories) or a single standalone story as structured YAML data. Returns markdown with an embedded YAML code block containing entity metadata and story details. Use for feeding data into external systems (Jira, markdown files, etc.).
+Export any specflow entity in multiple formats. Provide exactly one entity parameter. Set `tree=true` to include the full subtree (children, docs, decisions).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `epic` | string | no* | Epic slug to export |
-| `story` | string | no* | Standalone story slug to export |
+| `story` | string | no* | Story slug to export |
+| `initiative` | string | no* | Initiative slug to export |
+| `doc` | string | no* | Document slug to export |
+| `decision` | string | no* | Decision slug to export |
+| `format` | string | no | Output format: `yaml` (default), `md`, `html` |
+| `tree` | bool | no | Include full subtree (default: false) |
 | `include_done` | bool | no | Include stories with status `done` (default: true) |
 | `include_body` | bool | no | Include markdown body content (default: true) |
 
-*Provide either `epic` or `story`, not both.
+*Provide exactly one entity parameter.
 
-**Response:** Markdown with summary header and embedded YAML code block. Epic export includes epic metadata + ordered stories array. Story export includes single story YAML. Stories are ordered by phase position; unphased stories appear last.
+**Formats:**
+- `yaml` — structured YAML (backward compatible with Jira export skill). Epic exports use the legacy `epic:` + `stories:` structure.
+- `md` — human-readable markdown with headings, metadata, and acceptance checklists.
+- `html` — self-contained HTML file with Mermaid diagram rendering, syntax-highlighted code blocks, status badges, and table of contents.
+
+**Response:** Markdown-wrapped output. YAML format returns a YAML code block. Markdown format returns the rendered markdown directly. HTML format returns an HTML code block.
 
 ---
 

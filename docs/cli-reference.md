@@ -911,31 +911,43 @@ Download the latest release from GitHub and replace the current binary.
 ## export
 
 ```
-specflow export <epic-slug> [flags]
+specflow export [slug] [flags]
 ```
 
-Export an epic and its stories to a single human-readable markdown file. Stories are grouped under their phase headings and include status, priority, labels, body content, and acceptance criteria.
+Export any specflow entity (initiative, epic, story, doc, decision) to markdown, HTML, or YAML. Auto-detects entity type from the slug. Use `--all` to export the entire project hierarchy.
 
 ### Flags
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `-o`, `--output` | string | `<epic-slug>-export.md` | Output file path |
-| `--no-body` | bool | `false` | Omit markdown body content from stories |
+| `-f`, `--format` | string | `md` | Output format: `md`, `html`, `yaml` |
+| `-o`, `--output` | string | `<slug>-export.<ext>` | Output file path |
+| `-t`, `--tree` | bool | `false` | Include full subtree (children, docs, decisions) |
+| `--all` | bool | `false` | Export entire project hierarchy |
+| `--no-body` | bool | `false` | Omit markdown body content |
 | `--exclude-done` | bool | `false` | Skip stories with status `done` |
 
 ### Examples
 
 ```bash
-# Export to default file
+# Export epic as markdown (backward compatible)
 specflow export user-auth
-# → Exported 1 epic + 5 stories to user-auth-export.md
+# → Exported 1 epic (user-auth) to user-auth-export.md
 
-# Export without body content
-specflow export user-auth --no-body
+# Export epic with full subtree (stories, docs, decisions)
+specflow export user-auth --tree
 
-# Export to specific path, excluding done stories
-specflow export user-auth -o ~/exports/auth.md --exclude-done
+# Export as self-contained HTML with Mermaid diagrams and code highlighting
+specflow export user-auth --tree --format html
+
+# Export entire project as HTML
+specflow export --all --format html
+
+# Export as YAML
+specflow export user-auth --tree --format yaml
+
+# Export without body content, excluding done stories
+specflow export user-auth -o ~/exports/auth.md --exclude-done --no-body
 ```
 
 ---

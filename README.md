@@ -172,7 +172,7 @@ specflow init --with-claude
 | `sf_diff_check` | Detect drift between docs and stories by timestamps |
 | `sf_scope_drift` | Compare planned vs actual files changed in execution |
 | `sf_unstuck` | Diagnostic tool for debugging stuck implementations |
-| `sf_export` | Export an epic (with stories) or standalone story as structured YAML |
+| `sf_export` | Export any entity (initiative, epic, story, doc, decision) as YAML, markdown, or HTML |
 
 ### Write Tools
 

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/balazscsaba2006/specflow/internal/export"
 	"github.com/spf13/cobra"
@@ -11,112 +10,153 @@ import (
 
 func newExportCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "export <epic-slug>",
-		Short: "Export an epic and its stories to a markdown file",
-		Long:  "Generates a single human-readable markdown file from a specflow epic and all its stories.",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runExport,
+		Use:   "export [slug]",
+		Short: "Export entities to markdown, HTML, or YAML",
+		Long: `Export specflow entities (initiatives, epics, stories, docs, decisions) to various formats.
+
+Auto-detects the entity type from the slug. Use --all to export the entire project.
+
+Examples:
+  specflow export my-epic                 # markdown export of an epic
+  specflow export my-epic --format html   # HTML export with Mermaid + code highlighting
+  specflow export my-epic --tree          # include full subtree (stories, docs, decisions)
+  specflow export --all --format html     # export entire project as HTML`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runExport,
 	}
 
-	cmd.Flags().StringP("output", "o", "", "Output file path (default: <epic-slug>-export.md)")
-	cmd.Flags().Bool("no-body", false, "Omit markdown body content from stories")
+	cmd.Flags().StringP("format", "f", "md", "Output format: md, html, yaml")
+	cmd.Flags().StringP("output", "o", "", "Output file path (default: <slug>-export.<ext>)")
+	cmd.Flags().BoolP("tree", "t", false, "Include full subtree (children, docs, decisions)")
+	cmd.Flags().Bool("all", false, "Export entire project hierarchy")
+	cmd.Flags().Bool("no-body", false, "Omit markdown body content")
 	cmd.Flags().Bool("exclude-done", false, "Skip stories with status done")
 
 	return cmd
 }
 
 func runExport(cmd *cobra.Command, args []string) error {
-	epicSlug := args[0]
+	format, _ := cmd.Flags().GetString("format")
 	output, _ := cmd.Flags().GetString("output")
+	tree, _ := cmd.Flags().GetBool("tree")
+	all, _ := cmd.Flags().GetBool("all")
 	noBody, _ := cmd.Flags().GetBool("no-body")
 	excludeDone, _ := cmd.Flags().GetBool("exclude-done")
 
-	opts := export.ExportOptions{
-		IncludeDone: !excludeDone,
-		IncludeBody: !noBody,
+	if !all && len(args) == 0 {
+		return fmt.Errorf("provide a slug or use --all to export the entire project")
 	}
 
-	data, err := export.ExportEpic(appStore, epicSlug, opts)
+	extOpts := export.ExtractOptions{
+		IncludeDone: !excludeDone,
+		IncludeBody: !noBody,
+		Tree:        tree || all, // --all implies tree
+	}
+
+	renderOpts := export.RenderOptions{
+		IncludeBody: !noBody,
+		IncludeDone: !excludeDone,
+	}
+
+	var node *export.ExportNode
+	var slug string
+	var err error
+
+	if all {
+		slug = "project"
+		node, err = export.ExtractAll(appStore, extOpts)
+	} else {
+		slug = args[0]
+		node, err = resolveAndExtract(slug, extOpts)
+	}
 	if err != nil {
 		return err
 	}
 
-	md := renderExportMarkdown(data)
-
-	if output == "" {
-		output = epicSlug + "-export.md"
+	renderer, ext := getRenderer(format)
+	if renderer == nil {
+		return fmt.Errorf("unsupported format %q (use md, html, or yaml)", format)
 	}
 
-	if err := os.WriteFile(output, []byte(md), 0o600); err != nil {
+	data, err := renderer.Render(node, renderOpts)
+	if err != nil {
+		return fmt.Errorf("rendering export: %w", err)
+	}
+
+	if output == "" {
+		output = slug + "-export" + ext
+	}
+
+	if err := os.WriteFile(output, data, 0o600); err != nil {
 		return fmt.Errorf("writing export file: %w", err)
 	}
 
-	fmt.Printf("Exported 1 epic + %d stories to %s\n", len(data.Stories), output)
+	summary := buildExportSummary(node)
+	fmt.Printf("Exported %s to %s\n", summary, output)
 	return nil
 }
 
-func renderExportMarkdown(data *export.ExportData) string {
-	var b strings.Builder
-
-	// Epic header.
-	fmt.Fprintf(&b, "# %s\n\n", data.Epic.Title)
-	fmt.Fprintf(&b, "**Status:** %s", data.Epic.Status)
-	if data.Epic.Fidelity != "" {
-		fmt.Fprintf(&b, " | **Fidelity:** %s", data.Epic.Fidelity)
-	}
-	b.WriteString("\n")
-
-	// Epic body.
-	if data.Epic.Body != "" {
-		b.WriteString("\n")
-		b.WriteString(strings.TrimSpace(data.Epic.Body))
-		b.WriteString("\n")
+// resolveAndExtract auto-detects the entity type from the slug and extracts it.
+func resolveAndExtract(slug string, opts export.ExtractOptions) (*export.ExportNode, error) {
+	// Try initiative first.
+	if node, err := export.ExtractInitiative(appStore, slug, opts); err == nil {
+		return node, nil
 	}
 
-	// Phases overview.
-	if len(data.Epic.Phases) > 0 {
-		b.WriteString("\n## Phases\n")
-		// Build a slug→story map for quick lookup.
-		storyMap := make(map[string]export.StoryExport)
-		for i := range data.Stories {
-			storyMap[data.Stories[i].Slug] = data.Stories[i]
-		}
-		for _, phase := range data.Epic.Phases {
-			fmt.Fprintf(&b, "\n### %s\n", phase.Label)
-			for _, slug := range phase.Stories {
-				if st, ok := storyMap[slug]; ok {
-					fmt.Fprintf(&b, "- %s (%s, %s)\n", st.Title, st.Status, st.Priority)
-				} else {
-					fmt.Fprintf(&b, "- %s (filtered)\n", slug)
-				}
-			}
-		}
+	// Try epic.
+	if node, err := export.ExtractEpicNode(appStore, slug, opts); err == nil {
+		return node, nil
 	}
 
-	// Stories.
-	if len(data.Stories) > 0 {
-		b.WriteString("\n---\n\n## Stories\n")
-		for i := range data.Stories {
-			st := &data.Stories[i]
-			fmt.Fprintf(&b, "\n### %s\n\n", st.Title)
-			fmt.Fprintf(&b, "**Status:** %s | **Priority:** %s", st.Status, st.Priority)
-			if len(st.Labels) > 0 {
-				fmt.Fprintf(&b, " | **Labels:** %s", strings.Join(st.Labels, ", "))
-			}
-			b.WriteString("\n")
-
-			if st.Description != "" {
-				b.WriteString("\n")
-				b.WriteString(st.Description)
-				b.WriteString("\n")
-			}
-
-			if i < len(data.Stories)-1 {
-				b.WriteString("\n---\n")
-			}
-		}
+	// Try standalone story.
+	if node, err := export.ExtractStoryNode(appStore, slug, opts); err == nil {
+		return node, nil
 	}
 
-	b.WriteString("\n")
-	return b.String()
+	// Try doc (project-level, then epic-scoped would need epic context).
+	if node, err := export.ExtractDoc(appStore, slug, "", opts); err == nil {
+		return node, nil
+	}
+
+	// Try decision.
+	if node, err := export.ExtractDecision(appStore, slug, opts); err == nil {
+		return node, nil
+	}
+
+	return nil, fmt.Errorf("entity %q not found (checked: initiative, epic, story, doc, decision)", slug)
 }
+
+func getRenderer(format string) (renderer export.Renderer, ext string) {
+	switch format {
+	case "md", "markdown":
+		return &export.MarkdownRenderer{}, ".md"
+	case "html":
+		return &export.HTMLRenderer{}, ".html"
+	case "yaml", "yml":
+		return &export.YAMLRenderer{}, ".yaml"
+	default:
+		return nil, ""
+	}
+}
+
+func buildExportSummary(node *export.ExportNode) string {
+	if node.Type == export.NodeInitiative && node.Slug == "" {
+		// Full project export.
+		return fmt.Sprintf("project (%d top-level entities)", len(node.Children))
+	}
+
+	childCount := countChildren(node)
+	if childCount > 0 {
+		return fmt.Sprintf("1 %s + %d children", node.Type, childCount)
+	}
+	return fmt.Sprintf("1 %s (%s)", node.Type, node.Slug)
+}
+
+func countChildren(node *export.ExportNode) int {
+	count := len(node.Children)
+	for _, c := range node.Children {
+		count += countChildren(c)
+	}
+	return count
+}
+

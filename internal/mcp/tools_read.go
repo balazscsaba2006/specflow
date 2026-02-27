@@ -11,7 +11,6 @@ import (
 	"github.com/balazscsaba2006/specflow/internal/hardq"
 	"github.com/balazscsaba2006/specflow/internal/models"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"gopkg.in/yaml.v3"
 )
 
 // priorityRank maps priority strings to sort order (lower = higher priority).
@@ -76,8 +75,13 @@ type epicRequiredInput struct {
 }
 
 type exportInput struct {
-	Epic        string `json:"epic,omitempty" jsonschema:"Epic slug to export (provide epic or story, not both)"`
-	Story       string `json:"story,omitempty" jsonschema:"Standalone story slug to export (provide epic or story, not both)"`
+	Epic        string `json:"epic,omitempty" jsonschema:"Epic slug to export"`
+	Story       string `json:"story,omitempty" jsonschema:"Standalone story slug to export"`
+	Initiative  string `json:"initiative,omitempty" jsonschema:"Initiative slug to export"`
+	Doc         string `json:"doc,omitempty" jsonschema:"Document slug to export"`
+	Decision    string `json:"decision,omitempty" jsonschema:"Decision slug to export"`
+	Format      string `json:"format,omitempty" jsonschema:"Output format: yaml (default), md, html"`
+	Tree        *bool  `json:"tree,omitempty" jsonschema:"Include full subtree with children, docs, decisions (default false)"`
 	IncludeDone *bool  `json:"include_done,omitempty" jsonschema:"Include stories with status done (default true)"`
 	IncludeBody *bool  `json:"include_body,omitempty" jsonschema:"Include markdown body content (default true)"`
 }
@@ -200,8 +204,10 @@ func (s *Server) registerReadTools() {
 	}, s.handleCodeReview)
 
 	mcp.AddTool[exportInput, any](s.mcpSrv, &mcp.Tool{
-		Name:        "sf_export",
-		Description: "Export an epic (with stories) or a single standalone story as structured YAML data. Returns markdown with an embedded YAML code block. Use this to feed data into external systems (Jira, markdown files, etc.). Provide either epic or story parameter, not both.",
+		Name: "sf_export",
+		Description: `Export any specflow entity (initiative, epic, story, doc, decision) in multiple formats.
+
+Provide exactly one entity parameter. Format options: yaml (default, backward compat for Jira), md (markdown), html (self-contained HTML with Mermaid + code highlighting). Set tree=true to include the full subtree (children, docs, decisions).`,
 	}, s.handleExport)
 }
 
@@ -1628,31 +1634,6 @@ func (s *Server) handleDiffCheck(_ context.Context, _ *mcp.CallToolRequest, inpu
 
 // --- Export handler ---
 
-// YAML-serializable types for sf_export response.
-type exportYAML struct {
-	Epic    exportEpicYAML    `yaml:"epic"`
-	Stories []exportStoryYAML `yaml:"stories"`
-}
-
-type exportEpicYAML struct {
-	Slug     string            `yaml:"slug"`
-	Title    string            `yaml:"title"`
-	Status   string            `yaml:"status"`
-	Fidelity string            `yaml:"fidelity,omitempty"`
-	Body     string            `yaml:"body,omitempty"`
-	Phases   []models.Phase    `yaml:"phases,omitempty"`
-}
-
-type exportStoryYAML struct {
-	Slug        string   `yaml:"slug"`
-	Title       string   `yaml:"title"`
-	Status      string   `yaml:"status"`
-	Priority    string   `yaml:"priority"`
-	Labels      []string `yaml:"labels,omitempty"`
-	Acceptance  []string `yaml:"acceptance,omitempty"`
-	Description string   `yaml:"description,omitempty"`
-}
-
 func boolDefault(p *bool, def bool) bool {
 	if p == nil {
 		return def
@@ -1661,92 +1642,111 @@ func boolDefault(p *bool, def bool) bool {
 }
 
 func (s *Server) handleExport(_ context.Context, _ *mcp.CallToolRequest, input exportInput) (*mcp.CallToolResult, any, error) {
-	if input.Epic == "" && input.Story == "" {
-		return errResult("provide either epic or story parameter"), nil, nil
-	}
-	if input.Epic != "" && input.Story != "" {
-		return errResult("provide either epic or story, not both"), nil, nil
+	if err := validateExportInput(input); err != nil {
+		return errResult(err.Error()), nil, nil
 	}
 
-	opts := export.ExportOptions{
+	extOpts := export.ExtractOptions{
+		IncludeDone: boolDefault(input.IncludeDone, true),
+		IncludeBody: boolDefault(input.IncludeBody, true),
+		Tree:        boolDefault(input.Tree, false),
+	}
+
+	node, err := s.extractExportEntity(input, extOpts)
+	if err != nil {
+		return errResultf("extracting entity: %v", err), nil, nil
+	}
+
+	format := input.Format
+	if format == "" {
+		format = "yaml"
+	}
+
+	renderOpts := export.RenderOptions{
 		IncludeDone: boolDefault(input.IncludeDone, true),
 		IncludeBody: boolDefault(input.IncludeBody, true),
 	}
 
-	// Single story export path.
-	if input.Story != "" {
-		return s.handleExportStory(input.Story, opts)
-	}
-
-	return s.handleExportEpic(input.Epic, opts)
+	return s.renderExportResult(node, format, renderOpts)
 }
 
-func (s *Server) handleExportEpic(epicSlug string, opts export.ExportOptions) (*mcp.CallToolResult, any, error) {
-	data, err := export.ExportEpic(s.store, epicSlug, opts)
+func validateExportInput(input exportInput) error {
+	params := []string{input.Epic, input.Story, input.Initiative, input.Doc, input.Decision}
+	count := 0
+	for _, p := range params {
+		if p != "" {
+			count++
+		}
+	}
+	if count == 0 {
+		return fmt.Errorf("provide one entity parameter: epic, story, initiative, doc, or decision")
+	}
+	if count > 1 {
+		return fmt.Errorf("provide only one entity parameter")
+	}
+	return nil
+}
+
+func (s *Server) extractExportEntity(input exportInput, opts export.ExtractOptions) (*export.ExportNode, error) {
+	switch {
+	case input.Initiative != "":
+		return export.ExtractInitiative(s.store, input.Initiative, opts)
+	case input.Epic != "":
+		return export.ExtractEpicNode(s.store, input.Epic, opts)
+	case input.Story != "":
+		return export.ExtractStoryNode(s.store, input.Story, opts)
+	case input.Doc != "":
+		return export.ExtractDoc(s.store, input.Doc, "", opts)
+	case input.Decision != "":
+		return export.ExtractDecision(s.store, input.Decision, opts)
+	default:
+		return nil, fmt.Errorf("no entity parameter provided")
+	}
+}
+
+func (s *Server) renderExportResult(node *export.ExportNode, format string, opts export.RenderOptions) (*mcp.CallToolResult, any, error) {
+	renderer, err := getExportRenderer(format)
 	if err != nil {
-		return errResultf("exporting epic: %v", err), nil, nil
+		return errResult(err.Error()), nil, nil
 	}
 
-	// Convert to YAML-serializable types.
-	yamlData := exportYAML{
-		Epic: exportEpicYAML{
-			Slug:     data.Epic.Slug,
-			Title:    data.Epic.Title,
-			Status:   data.Epic.Status,
-			Fidelity: data.Epic.Fidelity,
-			Body:     data.Epic.Body,
-			Phases:   data.Epic.Phases,
-		},
-		Stories: make([]exportStoryYAML, len(data.Stories)),
-	}
-	for i := range data.Stories {
-		yamlData.Stories[i] = toStoryYAML(data.Stories[i])
-	}
-
-	yamlBytes, err := yaml.Marshal(yamlData)
+	out, err := renderer.Render(node, opts)
 	if err != nil {
-		return errResultf("marshaling export YAML: %v", err), nil, nil
+		return errResultf("rendering export: %v", err), nil, nil
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "## Export: %s\n\n", data.Epic.Title)
-	fmt.Fprintf(&b, "Exported 1 epic + %d stories.\n\n", len(data.Stories))
-	b.WriteString("```yaml\n")
-	b.Write(yamlBytes)
-	b.WriteString("```\n")
+	fmt.Fprintf(&b, "## Export: %s\n\n", node.Title)
+
+	switch format {
+	case "yaml", "yml":
+		fmt.Fprintf(&b, "Exported 1 %s", node.Type)
+		if len(node.Children) > 0 {
+			fmt.Fprintf(&b, " + %d children", len(node.Children))
+		}
+		b.WriteString(".\n\n```yaml\n")
+		b.Write(out)
+		b.WriteString("```\n")
+	case "md", "markdown":
+		b.Write(out)
+	case "html":
+		b.WriteString("HTML export rendered. Content:\n\n```html\n")
+		b.Write(out)
+		b.WriteString("\n```\n")
+	}
 
 	return textResult(b.String()), nil, nil
 }
 
-func (s *Server) handleExportStory(storySlug string, opts export.ExportOptions) (*mcp.CallToolResult, any, error) {
-	st, err := export.ExportStory(s.store, storySlug, opts)
-	if err != nil {
-		return errResultf("exporting story: %v", err), nil, nil
-	}
-
-	yamlBytes, err := yaml.Marshal(toStoryYAML(*st))
-	if err != nil {
-		return errResultf("marshaling export YAML: %v", err), nil, nil
-	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "## Export: %s\n\n", st.Title)
-	b.WriteString("Exported 1 story.\n\n")
-	b.WriteString("```yaml\n")
-	b.Write(yamlBytes)
-	b.WriteString("```\n")
-
-	return textResult(b.String()), nil, nil
-}
-
-func toStoryYAML(st export.StoryExport) exportStoryYAML {
-	return exportStoryYAML{
-		Slug:        st.Slug,
-		Title:       st.Title,
-		Status:      st.Status,
-		Priority:    st.Priority,
-		Labels:      st.Labels,
-		Acceptance:  st.Acceptance,
-		Description: st.Description,
+func getExportRenderer(format string) (export.Renderer, error) {
+	switch format {
+	case "yaml", "yml":
+		return &export.YAMLRenderer{}, nil
+	case "md", "markdown":
+		return &export.MarkdownRenderer{}, nil
+	case "html":
+		return &export.HTMLRenderer{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported format %q (use yaml, md, or html)", format)
 	}
 }
