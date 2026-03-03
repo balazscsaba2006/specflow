@@ -83,7 +83,7 @@ func (r *MarkdownRenderer) renderNode(b *strings.Builder, node *ExportNode, opts
 
 func (r *MarkdownRenderer) renderChildren(b *strings.Builder, node *ExportNode, opts RenderOptions, depth int) {
 	for _, child := range node.Children {
-		if !opts.IncludeDone && child.Type == NodeStory && child.Status == "done" {
+		if opts.ExcludeStatuses[child.Status] {
 			continue
 		}
 		b.WriteString("---\n\n")

@@ -75,15 +75,16 @@ type epicRequiredInput struct {
 }
 
 type exportInput struct {
-	Epic        string `json:"epic,omitempty" jsonschema:"Epic slug to export"`
-	Story       string `json:"story,omitempty" jsonschema:"Standalone story slug to export"`
-	Initiative  string `json:"initiative,omitempty" jsonschema:"Initiative slug to export"`
-	Doc         string `json:"doc,omitempty" jsonschema:"Document slug to export"`
-	Decision    string `json:"decision,omitempty" jsonschema:"Decision slug to export"`
-	Format      string `json:"format,omitempty" jsonschema:"Output format: yaml (default), md, html"`
-	Tree        *bool  `json:"tree,omitempty" jsonschema:"Include full subtree with children, docs, decisions (default false)"`
-	IncludeDone *bool  `json:"include_done,omitempty" jsonschema:"Include stories with status done (default true)"`
-	IncludeBody *bool  `json:"include_body,omitempty" jsonschema:"Include markdown body content (default true)"`
+	Epic          string   `json:"epic,omitempty" jsonschema:"Epic slug to export"`
+	Story         string   `json:"story,omitempty" jsonschema:"Standalone story slug to export"`
+	Initiative    string   `json:"initiative,omitempty" jsonschema:"Initiative slug to export"`
+	Doc           string   `json:"doc,omitempty" jsonschema:"Document slug to export"`
+	Decision      string   `json:"decision,omitempty" jsonschema:"Decision slug to export"`
+	Format        string   `json:"format,omitempty" jsonschema:"Output format: yaml (default), md, html"`
+	Tree          *bool    `json:"tree,omitempty" jsonschema:"Include full subtree with children, docs, decisions (default false)"`
+	IncludeDone   *bool    `json:"include_done,omitempty" jsonschema:"Include stories with status done (default true)"`
+	IncludeBody   *bool    `json:"include_body,omitempty" jsonschema:"Include markdown body content (default true)"`
+	ExcludeStatus []string `json:"exclude_status,omitempty" jsonschema:"Statuses to exclude from export (e.g. done, cancelled)"`
 }
 
 // registerReadTools registers all read-only MCP tools on the server.
@@ -1646,10 +1647,12 @@ func (s *Server) handleExport(_ context.Context, _ *mcp.CallToolRequest, input e
 		return errResult(err.Error()), nil, nil
 	}
 
+	excludeStatuses := buildExcludeStatuses(input.ExcludeStatus, input.IncludeDone)
+
 	extOpts := export.ExtractOptions{
-		IncludeDone: boolDefault(input.IncludeDone, true),
-		IncludeBody: boolDefault(input.IncludeBody, true),
-		Tree:        boolDefault(input.Tree, false),
+		ExcludeStatuses: excludeStatuses,
+		IncludeBody:     boolDefault(input.IncludeBody, true),
+		Tree:            boolDefault(input.Tree, false),
 	}
 
 	node, err := s.extractExportEntity(input, extOpts)
@@ -1663,11 +1666,25 @@ func (s *Server) handleExport(_ context.Context, _ *mcp.CallToolRequest, input e
 	}
 
 	renderOpts := export.RenderOptions{
-		IncludeDone: boolDefault(input.IncludeDone, true),
-		IncludeBody: boolDefault(input.IncludeBody, true),
+		ExcludeStatuses: excludeStatuses,
+		IncludeBody:     boolDefault(input.IncludeBody, true),
 	}
 
 	return s.renderExportResult(node, format, renderOpts)
+}
+
+// buildExcludeStatuses constructs the ExcludeStatuses map from the new exclude_status
+// parameter and the legacy include_done parameter for backwards compatibility.
+func buildExcludeStatuses(excludeStatus []string, includeDone *bool) map[string]bool {
+	result := make(map[string]bool, len(excludeStatus))
+	for _, s := range excludeStatus {
+		result[s] = true
+	}
+	// Backwards compat: include_done=false adds "done" to excludes.
+	if includeDone != nil && !*includeDone && !result["done"] {
+		result["done"] = true
+	}
+	return result
 }
 
 func validateExportInput(input exportInput) error {

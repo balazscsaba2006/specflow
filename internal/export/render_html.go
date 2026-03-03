@@ -124,7 +124,7 @@ func (r *HTMLRenderer) Render(node *ExportNode, opts RenderOptions) ([]byte, err
 
 func addStatusBadges(content string) string {
 	statuses := []string{"done", "active", "in_progress", "planned", "draft", "on_hold", "blocked",
-		"completed", "verifying"}
+		"completed", "verifying", "cancelled"}
 	for _, status := range statuses {
 		// Match bold status text like **Status:** done.
 		old := fmt.Sprintf("<strong>Status:</strong> %s", status)
@@ -141,7 +141,7 @@ func badgeClass(status string) string {
 		return "badge-done"
 	case "active", "in_progress", "planned":
 		return "badge-active"
-	case "blocked":
+	case "blocked", "cancelled":
 		return "badge-blocked"
 	default:
 		return "badge-draft"

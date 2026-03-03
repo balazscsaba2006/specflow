@@ -11,9 +11,9 @@ import (
 
 // ExtractOptions controls what data is included when extracting entities into ExportNodes.
 type ExtractOptions struct {
-	IncludeDone bool
-	IncludeBody bool
-	Tree        bool // include full subtree (children, docs, decisions)
+	ExcludeStatuses map[string]bool
+	IncludeBody     bool
+	Tree            bool // include full subtree (children, docs, decisions)
 }
 
 // ExtractInitiative loads an initiative and optionally its full subtree.
@@ -44,6 +44,9 @@ func ExtractInitiative(s *store.Store, slug string, opts ExtractOptions) (*Expor
 		epicNode, err := ExtractEpicNode(s, epicSlug, opts)
 		if err != nil {
 			return nil, fmt.Errorf("extracting epic %q for initiative %q: %w", epicSlug, slug, err)
+		}
+		if opts.ExcludeStatuses[epicNode.Status] {
+			continue
 		}
 		node.Children = append(node.Children, epicNode)
 	}
@@ -84,7 +87,7 @@ func ExtractEpicNode(s *store.Store, slug string, opts ExtractOptions) (*ExportN
 	sortStoriesByPhase(stories, slugPos)
 
 	for _, st := range stories {
-		if !opts.IncludeDone && st.Status == models.StoryStatusDone {
+		if opts.ExcludeStatuses[st.Status] {
 			continue
 		}
 		node.Children = append(node.Children, storyToNode(st, opts))
@@ -120,8 +123,8 @@ func ExtractStoryNode(s *store.Store, slug string, opts ExtractOptions) (*Export
 		return nil, fmt.Errorf("loading story %q: %w", slug, err)
 	}
 
-	if !opts.IncludeDone && st.Status == models.StoryStatusDone {
-		return nil, fmt.Errorf("story %q has status done and include_done is false", slug)
+	if opts.ExcludeStatuses[st.Status] {
+		return nil, fmt.Errorf("story %q has excluded status %q", slug, st.Status)
 	}
 
 	return storyToNode(st, opts), nil
@@ -187,6 +190,9 @@ func extractAllInitiatives(s *store.Store, root *ExportNode, opts ExtractOptions
 		if initErr != nil {
 			return nil, fmt.Errorf("extracting initiative %q: %w", init.Slug, initErr)
 		}
+		if opts.ExcludeStatuses[initNode.Status] {
+			continue
+		}
 		root.Children = append(root.Children, initNode)
 		for _, e := range init.Epics {
 			epicInInitiative[e] = true
@@ -208,6 +214,9 @@ func extractStandaloneEpics(s *store.Store, root *ExportNode, epicInInitiative m
 		if epicErr != nil {
 			return fmt.Errorf("extracting epic %q: %w", e.Slug, epicErr)
 		}
+		if opts.ExcludeStatuses[epicNode.Status] {
+			continue
+		}
 		root.Children = append(root.Children, epicNode)
 	}
 	return nil
@@ -219,7 +228,7 @@ func extractStandaloneStories(s *store.Store, root *ExportNode, opts ExtractOpti
 		return fmt.Errorf("listing standalone stories: %w", err)
 	}
 	for _, st := range stories {
-		if !opts.IncludeDone && st.Status == models.StoryStatusDone {
+		if opts.ExcludeStatuses[st.Status] {
 			continue
 		}
 		root.Children = append(root.Children, storyToNode(st, opts))

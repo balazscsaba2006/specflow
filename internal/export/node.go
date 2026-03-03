@@ -51,7 +51,7 @@ type Renderer interface {
 
 // RenderOptions controls renderer behavior.
 type RenderOptions struct {
-	IncludeBody bool
-	IncludeDone bool
-	Title       string // override document title
+	IncludeBody     bool
+	ExcludeStatuses map[string]bool
+	Title           string // override document title
 }

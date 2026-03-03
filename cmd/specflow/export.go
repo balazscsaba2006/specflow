@@ -15,12 +15,15 @@ func newExportCmd() *cobra.Command {
 		Long: `Export specflow entities (initiatives, epics, stories, docs, decisions) to various formats.
 
 Auto-detects the entity type from the slug. Use --all to export the entire project.
+Use --exclude-status to skip entities with specific statuses (e.g. done, cancelled).
 
 Examples:
-  specflow export my-epic                 # markdown export of an epic
-  specflow export my-epic --format html   # HTML export with Mermaid + code highlighting
-  specflow export my-epic --tree          # include full subtree (stories, docs, decisions)
-  specflow export --all --format html     # export entire project as HTML`,
+  specflow export my-epic                                   # markdown export of an epic
+  specflow export my-epic --format html                     # HTML export with Mermaid + code highlighting
+  specflow export my-epic --tree                            # include full subtree (stories, docs, decisions)
+  specflow export my-epic --tree --exclude-status done      # subtree without done stories
+  specflow export --all --format html                       # export entire project as HTML
+  specflow export --all --exclude-status done,cancelled     # skip done and cancelled entities`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: runExport,
 	}
@@ -30,7 +33,9 @@ Examples:
 	cmd.Flags().BoolP("tree", "t", false, "Include full subtree (children, docs, decisions)")
 	cmd.Flags().Bool("all", false, "Export entire project hierarchy")
 	cmd.Flags().Bool("no-body", false, "Omit markdown body content")
-	cmd.Flags().Bool("exclude-done", false, "Skip stories with status done")
+	cmd.Flags().StringSlice("exclude-status", nil, "Skip entities with these statuses (comma-separated, e.g. done,cancelled)")
+	cmd.Flags().Bool("exclude-done", false, "Skip stories with status done (deprecated: use --exclude-status done)")
+	_ = cmd.Flags().MarkHidden("exclude-done")
 
 	return cmd
 }
@@ -41,21 +46,32 @@ func runExport(cmd *cobra.Command, args []string) error {
 	tree, _ := cmd.Flags().GetBool("tree")
 	all, _ := cmd.Flags().GetBool("all")
 	noBody, _ := cmd.Flags().GetBool("no-body")
+	excludeStatusSlice, _ := cmd.Flags().GetStringSlice("exclude-status")
 	excludeDone, _ := cmd.Flags().GetBool("exclude-done")
+
+	// Backwards compat: --exclude-done maps to --exclude-status done.
+	if excludeDone && len(excludeStatusSlice) == 0 {
+		excludeStatusSlice = []string{"done"}
+	}
+
+	excludeStatuses := make(map[string]bool, len(excludeStatusSlice))
+	for _, s := range excludeStatusSlice {
+		excludeStatuses[s] = true
+	}
 
 	if !all && len(args) == 0 {
 		return fmt.Errorf("provide a slug or use --all to export the entire project")
 	}
 
 	extOpts := export.ExtractOptions{
-		IncludeDone: !excludeDone,
-		IncludeBody: !noBody,
-		Tree:        tree || all, // --all implies tree
+		ExcludeStatuses: excludeStatuses,
+		IncludeBody:     !noBody,
+		Tree:            tree || all, // --all implies tree
 	}
 
 	renderOpts := export.RenderOptions{
-		IncludeBody: !noBody,
-		IncludeDone: !excludeDone,
+		IncludeBody:     !noBody,
+		ExcludeStatuses: excludeStatuses,
 	}
 
 	var node *export.ExportNode

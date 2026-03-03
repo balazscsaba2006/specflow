@@ -90,7 +90,7 @@ func (r *YAMLRenderer) renderLegacyEpic(node *ExportNode, opts RenderOptions) ([
 		if child.Type != NodeStory {
 			continue
 		}
-		if !opts.IncludeDone && child.Status == "done" {
+		if opts.ExcludeStatuses[child.Status] {
 			continue
 		}
 		data.Stories = append(data.Stories, yamlStory{
@@ -151,7 +151,7 @@ func (r *YAMLRenderer) nodeToYAML(node *ExportNode, opts RenderOptions) yamlNode
 	}
 
 	for _, c := range node.Children {
-		if !opts.IncludeDone && c.Type == NodeStory && c.Status == "done" {
+		if opts.ExcludeStatuses[c.Status] {
 			continue
 		}
 		yn.Children = append(yn.Children, r.nodeToYAML(c, opts))

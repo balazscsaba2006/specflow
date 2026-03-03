@@ -12,8 +12,8 @@ import (
 
 // ExportOptions controls what data is included in the export.
 type ExportOptions struct {
-	IncludeDone bool
-	IncludeBody bool
+	ExcludeStatuses map[string]bool
+	IncludeBody     bool
 }
 
 // ExportData holds the export-ready representation of an epic and its stories.
@@ -56,11 +56,11 @@ func ExportEpic(s *store.Store, epicSlug string, opts ExportOptions) (*ExportDat
 		return nil, fmt.Errorf("listing stories for epic %q: %w", epicSlug, err)
 	}
 
-	// Filter out done stories if requested.
-	if !opts.IncludeDone {
+	// Filter out stories with excluded statuses.
+	if len(opts.ExcludeStatuses) > 0 {
 		filtered := make([]*models.Story, 0, len(stories))
 		for _, st := range stories {
-			if st.Status != models.StoryStatusDone {
+			if !opts.ExcludeStatuses[st.Status] {
 				filtered = append(filtered, st)
 			}
 		}
@@ -136,8 +136,8 @@ func ExportStory(s *store.Store, storySlug string, opts ExportOptions) (*StoryEx
 		return nil, fmt.Errorf("loading story %q: %w", storySlug, err)
 	}
 
-	if !opts.IncludeDone && st.Status == models.StoryStatusDone {
-		return nil, fmt.Errorf("story %q has status done and include_done is false", storySlug)
+	if opts.ExcludeStatuses[st.Status] {
+		return nil, fmt.Errorf("story %q has excluded status %q", storySlug, st.Status)
 	}
 
 	return &StoryExport{
