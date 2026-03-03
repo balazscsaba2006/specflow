@@ -72,7 +72,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "story-c", "Story C", "my-epic", "in_progress", "low", "Body C", []string{"frontend"}, nil)
 			},
 			epicSlug: "my-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				// Epic fields
 				if data.Epic.Slug != "my-epic" {
@@ -131,7 +131,7 @@ func TestExportEpic(t *testing.T) {
 				createEpic(t, s, "empty-epic", "Empty", "alpha", "Some body.", nil)
 			},
 			epicSlug: "empty-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				if data.Epic.Slug != "empty-epic" {
 					t.Errorf("Epic.Slug = %q, want %q", data.Epic.Slug, "empty-epic")
@@ -142,7 +142,7 @@ func TestExportEpic(t *testing.T) {
 			},
 		},
 		{
-			name: "IncludeDone=false filters done stories",
+			name: "ExcludeStatuses filters done stories",
 			setup: func(t *testing.T, s *store.Store) {
 				createEpic(t, s, "filter-epic", "Filter", "beta", "", []models.Phase{
 					{Label: "Phase 1", Stories: []string{"active-story", "done-story"}},
@@ -151,7 +151,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "done-story", "Done", "filter-epic", "done", "medium", "", nil, []string{"AC"})
 			},
 			epicSlug: "filter-epic",
-			opts:     ExportOptions{IncludeDone: false, IncludeBody: true},
+			opts:     ExportOptions{ExcludeStatuses: map[string]bool{"done": true}, IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				if len(data.Stories) != 1 {
 					t.Fatalf("Stories len = %d, want 1", len(data.Stories))
@@ -170,7 +170,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "body-story", "Has Body", "nobody-epic", "planned", "high", "Story body.", nil, []string{"AC1"})
 			},
 			epicSlug: "nobody-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: false},
+			opts:     ExportOptions{IncludeBody: false},
 			checkData: func(t *testing.T, data *ExportData) {
 				if data.Epic.Body != "" {
 					t.Errorf("Epic.Body = %q, want empty", data.Epic.Body)
@@ -194,7 +194,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "phased", "Phased", "mixed-epic", "planned", "high", "", nil, []string{"AC"})
 			},
 			epicSlug: "mixed-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				if len(data.Stories) != 2 {
 					t.Fatalf("Stories len = %d, want 2", len(data.Stories))
@@ -214,7 +214,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "ac-story", "AC Story", "ac-epic", "planned", "medium", "", nil, []string{"Must do X", "Must do Y"})
 			},
 			epicSlug: "ac-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				desc := data.Stories[0].Description
 				if !strings.HasPrefix(desc, "## Acceptance Criteria") {
@@ -235,7 +235,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "bare-story", "Bare Story", "bare-epic", "planned", "medium", "", nil, nil)
 			},
 			epicSlug: "bare-epic",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				if data.Stories[0].Description != "" {
 					t.Errorf("Description = %q, want empty", data.Stories[0].Description)
@@ -254,7 +254,7 @@ func TestExportEpic(t *testing.T) {
 				createStory(t, s, "orphan", "Orphan Story", "full-epic", "planned", "low", "", nil, nil)
 			},
 			epicSlug: "full-epic",
-			opts:     ExportOptions{IncludeDone: false, IncludeBody: true},
+			opts:     ExportOptions{ExcludeStatuses: map[string]bool{"done": true}, IncludeBody: true},
 			checkData: func(t *testing.T, data *ExportData) {
 				// Done story should be filtered out
 				if len(data.Stories) != 2 {
@@ -273,7 +273,7 @@ func TestExportEpic(t *testing.T) {
 			name:     "nonexistent epic returns error",
 			setup:    func(t *testing.T, s *store.Store) {},
 			epicSlug: "does-not-exist",
-			opts:     ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:     ExportOptions{IncludeBody: true},
 			wantErr:  true,
 		},
 	}
@@ -315,7 +315,7 @@ func TestExportStory(t *testing.T) {
 				createStory(t, s, "solo-story", "Solo Story", "", "planned", "high", "Story body.", []string{"backend"}, []string{"AC1", "AC2"})
 			},
 			slug: "solo-story",
-			opts: ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts: ExportOptions{IncludeBody: true},
 			checkData: func(t *testing.T, st *StoryExport) {
 				if st.Slug != "solo-story" {
 					t.Errorf("Slug = %q, want %q", st.Slug, "solo-story")
@@ -332,19 +332,19 @@ func TestExportStory(t *testing.T) {
 			},
 		},
 		{
-			name: "done story with IncludeDone=false returns error",
+			name: "done story with ExcludeStatuses returns error",
 			setup: func(t *testing.T, s *store.Store) {
 				createStory(t, s, "done-solo", "Done Solo", "", "done", "low", "", nil, nil)
 			},
 			slug:    "done-solo",
-			opts:    ExportOptions{IncludeDone: false, IncludeBody: true},
+			opts:    ExportOptions{ExcludeStatuses: map[string]bool{"done": true}, IncludeBody: true},
 			wantErr: true,
 		},
 		{
 			name:    "nonexistent story returns error",
 			setup:   func(t *testing.T, s *store.Store) {},
 			slug:    "nope",
-			opts:    ExportOptions{IncludeDone: true, IncludeBody: true},
+			opts:    ExportOptions{IncludeBody: true},
 			wantErr: true,
 		},
 		{
@@ -353,7 +353,7 @@ func TestExportStory(t *testing.T) {
 				createStory(t, s, "nb-story", "No Body Export", "", "planned", "medium", "Secret body.", nil, []string{"AC1"})
 			},
 			slug: "nb-story",
-			opts: ExportOptions{IncludeDone: true, IncludeBody: false},
+			opts: ExportOptions{IncludeBody: false},
 			checkData: func(t *testing.T, st *StoryExport) {
 				if strings.Contains(st.Description, "Secret body") {
 					t.Error("Description should not contain body when IncludeBody=false")

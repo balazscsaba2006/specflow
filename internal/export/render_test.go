@@ -71,7 +71,7 @@ func TestMarkdownRenderer(t *testing.T) {
 		{
 			name: "full epic with body",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"# Test Epic",
 				"**Status:** active",
@@ -94,7 +94,7 @@ func TestMarkdownRenderer(t *testing.T) {
 		{
 			name: "excludes done stories",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: false},
+			opts: RenderOptions{IncludeBody: true, ExcludeStatuses: map[string]bool{"done": true}},
 			contains: []string{
 				"## Story A",
 			},
@@ -103,9 +103,31 @@ func TestMarkdownRenderer(t *testing.T) {
 			},
 		},
 		{
+			name: "excludes cancelled stories",
+			node: func() *ExportNode {
+				n := makeTestNode()
+				n.Children = append(n.Children, &ExportNode{
+					Type:     NodeStory,
+					Slug:     "story-c",
+					Title:    "Story C",
+					Status:   "cancelled",
+					Priority: "low",
+				})
+				return n
+			}(),
+			opts: RenderOptions{IncludeBody: true, ExcludeStatuses: map[string]bool{"cancelled": true}},
+			contains: []string{
+				"## Story A",
+				"## Story B",
+			},
+			excludes: []string{
+				"## Story C",
+			},
+		},
+		{
 			name: "excludes body when IncludeBody=false",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: false, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: false},
 			excludes: []string{
 				"Epic description here.",
 				"Story A body.",
@@ -119,7 +141,7 @@ func TestMarkdownRenderer(t *testing.T) {
 		{
 			name: "title override",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true, Title: "Custom Title"},
+			opts: RenderOptions{IncludeBody: true, Title: "Custom Title"},
 			contains: []string{
 				"# Custom Title",
 			},
@@ -135,7 +157,7 @@ func TestMarkdownRenderer(t *testing.T) {
 				Acceptance: []string{"AC1"},
 				Body:       "Story body.",
 			},
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"# Solo Story",
 				"**Priority:** high",
@@ -152,7 +174,7 @@ func TestMarkdownRenderer(t *testing.T) {
 				Status: "active",
 				Goal:   "Build great things",
 			},
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"# My Initiative",
 				"**Goal:** Build great things",
@@ -194,7 +216,7 @@ func TestYAMLRenderer(t *testing.T) {
 		{
 			name: "epic produces legacy format",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"epic:",
 				"slug: test-epic",
@@ -209,7 +231,7 @@ func TestYAMLRenderer(t *testing.T) {
 		{
 			name: "epic excludes done stories",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: false},
+			opts: RenderOptions{IncludeBody: true, ExcludeStatuses: map[string]bool{"done": true}},
 			contains: []string{
 				"slug: story-a",
 			},
@@ -227,7 +249,7 @@ func TestYAMLRenderer(t *testing.T) {
 				Priority:   "high",
 				Acceptance: []string{"AC1"},
 			},
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"slug: solo",
 				"title: Solo Story",
@@ -246,7 +268,7 @@ func TestYAMLRenderer(t *testing.T) {
 					{Type: NodeEpic, Slug: "ep1", Title: "Epic 1", Status: "active"},
 				},
 			},
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"type: initiative",
 				"slug: init-1",
@@ -289,7 +311,7 @@ func TestHTMLRenderer(t *testing.T) {
 		{
 			name: "produces valid HTML with mermaid and hljs",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				"<!DOCTYPE html>",
 				"<title>Test Epic</title>",
@@ -310,7 +332,7 @@ func TestHTMLRenderer(t *testing.T) {
 				Status: "active",
 				Body:   "```mermaid\nflowchart LR\n    A --> B\n```",
 			},
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true},
+			opts: RenderOptions{IncludeBody: true},
 			contains: []string{
 				`class="mermaid"`,
 				"A --&gt; B",
@@ -319,7 +341,7 @@ func TestHTMLRenderer(t *testing.T) {
 		{
 			name: "title override in HTML",
 			node: makeTestNode(),
-			opts: RenderOptions{IncludeBody: true, IncludeDone: true, Title: "Custom Title"},
+			opts: RenderOptions{IncludeBody: true, Title: "Custom Title"},
 			contains: []string{
 				"<title>Custom Title</title>",
 			},

@@ -63,7 +63,7 @@ func TestExtractEpicNode(t *testing.T) {
 				createStory(t, s, "s1", "Story 1", "my-epic", "planned", "high", "", nil, nil)
 			},
 			slug: "my-epic",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: false},
+			opts: ExtractOptions{IncludeBody: true, Tree: false},
 			check: func(t *testing.T, node *ExportNode) {
 				if node.Type != NodeEpic {
 					t.Errorf("Type = %q, want %q", node.Type, NodeEpic)
@@ -88,7 +88,7 @@ func TestExtractEpicNode(t *testing.T) {
 				createDecision(t, s, "dec1", "Decision 1", "## Context\n\nCtx\n\n## Decision\n\nDec", []string{"full-epic"})
 			},
 			slug: "full-epic",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: true},
+			opts: ExtractOptions{IncludeBody: true, Tree: true},
 			check: func(t *testing.T, node *ExportNode) {
 				if len(node.Children) != 2 {
 					t.Fatalf("Children = %d, want 2", len(node.Children))
@@ -108,14 +108,14 @@ func TestExtractEpicNode(t *testing.T) {
 			},
 		},
 		{
-			name: "epic tree with IncludeDone=false filters stories",
+			name: "epic tree with ExcludeStatuses filters done stories",
 			setup: func(t *testing.T, s *store.Store) {
 				createEpic(t, s, "filter-epic", "Filter", "beta", "", nil)
 				createStory(t, s, "active", "Active", "filter-epic", "planned", "high", "", nil, nil)
 				createStory(t, s, "done-s", "Done", "filter-epic", "done", "low", "", nil, nil)
 			},
 			slug: "filter-epic",
-			opts: ExtractOptions{IncludeDone: false, IncludeBody: true, Tree: true},
+			opts: ExtractOptions{ExcludeStatuses: map[string]bool{"done": true}, IncludeBody: true, Tree: true},
 			check: func(t *testing.T, node *ExportNode) {
 				if len(node.Children) != 1 {
 					t.Fatalf("Children = %d, want 1 (done filtered)", len(node.Children))
@@ -132,7 +132,7 @@ func TestExtractEpicNode(t *testing.T) {
 				createStory(t, s, "nb-s", "NB Story", "nb-epic", "planned", "high", "Story body.", nil, nil)
 			},
 			slug: "nb-epic",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: false, Tree: true},
+			opts: ExtractOptions{IncludeBody: false, Tree: true},
 			check: func(t *testing.T, node *ExportNode) {
 				if node.Body != "" {
 					t.Errorf("Epic Body = %q, want empty", node.Body)
@@ -146,8 +146,45 @@ func TestExtractEpicNode(t *testing.T) {
 			name:    "nonexistent epic returns error",
 			setup:   func(t *testing.T, s *store.Store) {},
 			slug:    "nope",
-			opts:    ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: true},
+			opts:    ExtractOptions{IncludeBody: true, Tree: true},
 			wantErr: true,
+		},
+		{
+			name: "epic tree with ExcludeStatuses filters cancelled stories",
+			setup: func(t *testing.T, s *store.Store) {
+				createEpic(t, s, "cancel-epic", "Cancel", "beta", "", nil)
+				createStory(t, s, "active-s", "Active", "cancel-epic", "planned", "high", "", nil, nil)
+				createStory(t, s, "cancel-s", "Cancelled", "cancel-epic", "cancelled", "low", "", nil, nil)
+			},
+			slug: "cancel-epic",
+			opts: ExtractOptions{ExcludeStatuses: map[string]bool{"cancelled": true}, IncludeBody: true, Tree: true},
+			check: func(t *testing.T, node *ExportNode) {
+				if len(node.Children) != 1 {
+					t.Fatalf("Children = %d, want 1 (cancelled filtered)", len(node.Children))
+				}
+				if node.Children[0].Slug != "active-s" {
+					t.Errorf("Children[0].Slug = %q, want active-s", node.Children[0].Slug)
+				}
+			},
+		},
+		{
+			name: "epic tree excludes both done and cancelled",
+			setup: func(t *testing.T, s *store.Store) {
+				createEpic(t, s, "multi-epic", "Multi", "beta", "", nil)
+				createStory(t, s, "active-m", "Active", "multi-epic", "planned", "high", "", nil, nil)
+				createStory(t, s, "done-m", "Done", "multi-epic", "done", "low", "", nil, nil)
+				createStory(t, s, "cancel-m", "Cancelled", "multi-epic", "cancelled", "low", "", nil, nil)
+			},
+			slug: "multi-epic",
+			opts: ExtractOptions{ExcludeStatuses: map[string]bool{"done": true, "cancelled": true}, IncludeBody: true, Tree: true},
+			check: func(t *testing.T, node *ExportNode) {
+				if len(node.Children) != 1 {
+					t.Fatalf("Children = %d, want 1 (done+cancelled filtered)", len(node.Children))
+				}
+				if node.Children[0].Slug != "active-m" {
+					t.Errorf("Children[0].Slug = %q, want active-m", node.Children[0].Slug)
+				}
+			},
 		},
 	}
 
@@ -188,7 +225,7 @@ func TestExtractInitiative(t *testing.T) {
 				createInitiative(t, s, "init1", "Initiative 1", "Build things", nil)
 			},
 			slug: "init1",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: false},
+			opts: ExtractOptions{IncludeBody: true, Tree: false},
 			check: func(t *testing.T, node *ExportNode) {
 				if node.Type != NodeInitiative {
 					t.Errorf("Type = %q, want initiative", node.Type)
@@ -209,7 +246,7 @@ func TestExtractInitiative(t *testing.T) {
 				createInitiative(t, s, "init2", "Initiative 2", "Goal", []string{"ep1", "ep2"})
 			},
 			slug: "init2",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: true},
+			opts: ExtractOptions{IncludeBody: true, Tree: true},
 			check: func(t *testing.T, node *ExportNode) {
 				if len(node.Children) != 2 {
 					t.Fatalf("Children = %d, want 2", len(node.Children))
@@ -223,7 +260,7 @@ func TestExtractInitiative(t *testing.T) {
 			name:    "nonexistent initiative",
 			setup:   func(t *testing.T, s *store.Store) {},
 			slug:    "nope",
-			opts:    ExtractOptions{IncludeDone: true, IncludeBody: true, Tree: true},
+			opts:    ExtractOptions{IncludeBody: true, Tree: true},
 			wantErr: true,
 		},
 	}
@@ -265,7 +302,7 @@ func TestExtractStoryNode(t *testing.T) {
 				createStory(t, s, "solo", "Solo", "", "planned", "high", "Body.", []string{"be"}, []string{"AC1"})
 			},
 			slug: "solo",
-			opts: ExtractOptions{IncludeDone: true, IncludeBody: true},
+			opts: ExtractOptions{IncludeBody: true},
 			check: func(t *testing.T, node *ExportNode) {
 				if node.Type != NodeStory {
 					t.Errorf("Type = %q, want story", node.Type)
@@ -279,19 +316,19 @@ func TestExtractStoryNode(t *testing.T) {
 			},
 		},
 		{
-			name: "done story with IncludeDone=false",
+			name: "done story with ExcludeStatuses excludes done",
 			setup: func(t *testing.T, s *store.Store) {
 				createStory(t, s, "done-s", "Done", "", "done", "low", "", nil, nil)
 			},
 			slug:    "done-s",
-			opts:    ExtractOptions{IncludeDone: false, IncludeBody: true},
+			opts:    ExtractOptions{ExcludeStatuses: map[string]bool{"done": true}, IncludeBody: true},
 			wantErr: true,
 		},
 		{
 			name:    "nonexistent story",
 			setup:   func(t *testing.T, s *store.Store) {},
 			slug:    "nope",
-			opts:    ExtractOptions{IncludeDone: true, IncludeBody: true},
+			opts:    ExtractOptions{IncludeBody: true},
 			wantErr: true,
 		},
 	}
@@ -382,7 +419,7 @@ func TestExtractAll(t *testing.T) {
 	// Create an unscoped decision.
 	createDecision(t, s, "dec1", "Decision 1", "Body.", nil)
 
-	root, err := ExtractAll(s, ExtractOptions{IncludeDone: true, IncludeBody: true})
+	root, err := ExtractAll(s, ExtractOptions{IncludeBody: true})
 	if err != nil {
 		t.Fatalf("ExtractAll() error: %v", err)
 	}
