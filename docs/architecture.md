@@ -227,7 +227,7 @@ Groups epics toward a strategic goal. Optional -- epics can exist without one.
 | `open_questions` | []string | Unresolved questions |
 | `resolved_questions` | []ResolvedQuestion | Resolved Q&A pairs (question + answer) |
 
-**Statuses**: `active`, `completed`, `on_hold`, `archived`
+**Statuses**: `active`, `completed`, `on_hold`, `cancelled`, `archived`
 
 ### Epic
 
@@ -247,7 +247,7 @@ A shippable feature or capability. Contains phases that group stories.
 | `fidelity` | string | Quality target: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
 | `non_goals` | []string | Explicit non-goals to prevent scope creep |
 
-**Statuses**: `draft`, `active`, `completed`, `on_hold`, `archived`
+**Statuses**: `draft`, `active`, `completed`, `on_hold`, `cancelled`, `archived`
 
 ### Story
 
@@ -271,7 +271,7 @@ The atomic work unit. The only entity that goes through execution and verificati
 | `fidelity` | string | Quality target (inherits from epic context if not set) |
 | `non_goals` | []string | Explicit non-goals for this story |
 
-**Statuses**: `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`
+**Statuses**: `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`, `cancelled`
 
 **Status transition diagram:**
 
@@ -285,9 +285,12 @@ blocked <----+------------+
   |
   +--> draft | planned | in_progress
        (unblocked, returns to prior state)
+
+any --> cancelled
+cancelled --> draft | planned
 ```
 
-Transitions are validated in `models.ValidateTransition()`. The `done` status is terminal. Any status can transition to `blocked`. From `blocked`, a story can return to `draft`, `planned`, or `in_progress`. The `verifying` status can transition back to `in_progress` (rework needed) or forward to `done`.
+Transitions are validated in `models.ValidateTransition()`. Any status can transition to `blocked` or `cancelled`. `done` can only transition to `cancelled`. From `blocked`, a story can return to `draft`, `planned`, or `in_progress`. From `cancelled`, a story can return to `draft` or `planned`. The `verifying` status can transition back to `in_progress` (rework needed) or forward to `done`.
 
 ### Document
 

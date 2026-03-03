@@ -47,6 +47,11 @@ linters:
 
     misspell:
       locale: US
+      extra-words:
+        - typo: "cancelled"
+          correction: "cancelled"
+        - typo: "Cancelled"
+          correction: "Cancelled"
 
     revive:
       enable-all-rules: false

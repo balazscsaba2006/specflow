@@ -175,7 +175,7 @@ Quick-update a single field on an initiative without opening an editor.
 | `field` | yes | Field to update: `status`, `title`, or `goal` |
 | `value` | yes | New value for the field |
 
-**Valid statuses:** `active`, `completed`, `on_hold`, `archived`
+**Valid statuses:** `active`, `completed`, `on_hold`, `cancelled`, `archived`
 
 ### initiative archive
 
@@ -306,7 +306,7 @@ Quick-update a single field on an epic without opening an editor.
 | `field` | yes | Field to update: `status`, `title`, or `initiative` |
 | `value` | yes | New value for the field |
 
-**Valid statuses:** `draft`, `active`, `completed`, `on_hold`, `archived`
+**Valid statuses:** `draft`, `active`, `completed`, `on_hold`, `cancelled`, `archived`
 
 ### epic archive
 
@@ -460,18 +460,19 @@ Quick-update a single field on a story without opening an editor. Status changes
 |------|------|---------|-------------|
 | `--epic` | string | `""` | Epic slug (for epic-scoped stories) |
 
-**Valid statuses:** `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`
+**Valid statuses:** `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`, `cancelled`
 
 **Status transitions:**
 
 | From | Allowed transitions |
 |------|---------------------|
-| `draft` | `planned`, `blocked` |
-| `planned` | `in_progress`, `blocked` |
-| `in_progress` | `verifying`, `done`, `blocked` |
-| `verifying` | `done`, `in_progress`, `blocked` |
-| `done` | (none -- terminal) |
-| `blocked` | `draft`, `planned`, `in_progress` |
+| `draft` | `planned`, `blocked`, `cancelled` |
+| `planned` | `in_progress`, `blocked`, `cancelled` |
+| `in_progress` | `verifying`, `done`, `blocked`, `cancelled` |
+| `verifying` | `done`, `in_progress`, `blocked`, `cancelled` |
+| `done` | `cancelled` |
+| `blocked` | `draft`, `planned`, `in_progress`, `cancelled` |
+| `cancelled` | `draft`, `planned` |
 
 **Valid priorities:** `critical`, `high`, `medium`, `low`
 
@@ -925,7 +926,7 @@ Export any specflow entity (initiative, epic, story, doc, decision) to markdown,
 | `-t`, `--tree` | bool | `false` | Include full subtree (children, docs, decisions) |
 | `--all` | bool | `false` | Export entire project hierarchy |
 | `--no-body` | bool | `false` | Omit markdown body content |
-| `--exclude-done` | bool | `false` | Skip stories with status `done` |
+| `--exclude-status` | string | `""` | Comma-separated statuses to exclude (e.g. `done,cancelled`). `--exclude-done` still works as a deprecated hidden alias. |
 
 ### Examples
 
@@ -946,8 +947,8 @@ specflow export --all --format html
 # Export as YAML
 specflow export user-auth --tree --format yaml
 
-# Export without body content, excluding done stories
-specflow export user-auth -o ~/exports/auth.md --exclude-done --no-body
+# Export without body content, excluding done and cancelled stories
+specflow export user-auth -o ~/exports/auth.md --exclude-status done,cancelled --no-body
 ```
 
 ---

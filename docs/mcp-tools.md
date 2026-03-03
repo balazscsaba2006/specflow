@@ -302,7 +302,8 @@ Export any specflow entity in multiple formats. Provide exactly one entity param
 | `decision` | string | no* | Decision slug to export |
 | `format` | string | no | Output format: `yaml` (default), `md`, `html` |
 | `tree` | bool | no | Include full subtree (default: false) |
-| `include_done` | bool | no | Include stories with status `done` (default: true) |
+| `include_done` | bool | no | Include stories with status `done` (default: true) (deprecated: use `exclude_status`) |
+| `exclude_status` | string[] | no | Statuses to exclude from export (e.g. `["done", "cancelled"]`) |
 | `include_body` | bool | no | Include markdown body content (default: true) |
 
 *Provide exactly one entity parameter.
@@ -386,7 +387,7 @@ Update an existing story. Only provided fields are updated. Labels and blocked_b
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Story slug |
-| `status` | string | no | New status (validated against transition rules) |
+| `status` | string | no | New status: `draft`, `planned`, `in_progress`, `verifying`, `done`, `blocked`, `cancelled` (validated against transition rules) |
 | `priority` | string | no | New priority |
 | `labels` | []string | no | Replace labels |
 | `blocked_by` | []string | no | Replace blocked_by list |
@@ -409,7 +410,7 @@ Update an existing epic. Only provided fields are updated. Status, fidelity, and
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Epic slug |
-| `status` | string | no | New status: `draft`, `active`, `completed`, `on_hold`, `archived` |
+| `status` | string | no | New status: `draft`, `active`, `completed`, `on_hold`, `cancelled`, `archived` |
 | `fidelity` | string | no | Target fidelity: `prototype`, `personal-tool`, `alpha`, `beta`, `production` |
 | `initiative` | string | no | Parent initiative slug |
 | `non_goals` | []string | no | Append to non-goals |
@@ -427,7 +428,7 @@ Update an existing initiative. Only provided fields are updated. Status and goal
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `slug` | string | yes | Initiative slug |
-| `status` | string | no | New status: `active`, `completed`, `on_hold`, `archived` |
+| `status` | string | no | New status: `active`, `completed`, `on_hold`, `cancelled`, `archived` |
 | `goal` | string | no | Updated goal statement |
 | `success_criteria` | []string | no | Append to success criteria |
 | `epics` | []string | no | Append epic slugs |
