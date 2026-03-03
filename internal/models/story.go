@@ -13,6 +13,7 @@ const (
 	StoryStatusVerifying  = "verifying"
 	StoryStatusDone       = "done"
 	StoryStatusBlocked    = "blocked"
+	StoryStatusCancelled  = "cancelled"
 )
 
 var ValidStoryStatuses = []string{
@@ -22,6 +23,7 @@ var ValidStoryStatuses = []string{
 	StoryStatusVerifying,
 	StoryStatusDone,
 	StoryStatusBlocked,
+	StoryStatusCancelled,
 }
 
 // Story priorities
@@ -42,12 +44,13 @@ var ValidPriorities = []string{
 // validTransitions defines allowed status transitions.
 // Any status can transition to "blocked".
 var validTransitions = map[string][]string{
-	StoryStatusDraft:      {StoryStatusPlanned, StoryStatusBlocked},
-	StoryStatusPlanned:    {StoryStatusInProgress, StoryStatusBlocked},
-	StoryStatusInProgress: {StoryStatusVerifying, StoryStatusDone, StoryStatusBlocked},
-	StoryStatusVerifying:  {StoryStatusDone, StoryStatusInProgress, StoryStatusBlocked},
-	StoryStatusDone:       {},
-	StoryStatusBlocked:    {StoryStatusDraft, StoryStatusPlanned, StoryStatusInProgress},
+	StoryStatusDraft:      {StoryStatusPlanned, StoryStatusBlocked, StoryStatusCancelled},
+	StoryStatusPlanned:    {StoryStatusInProgress, StoryStatusBlocked, StoryStatusCancelled},
+	StoryStatusInProgress: {StoryStatusVerifying, StoryStatusDone, StoryStatusBlocked, StoryStatusCancelled},
+	StoryStatusVerifying:  {StoryStatusDone, StoryStatusInProgress, StoryStatusBlocked, StoryStatusCancelled},
+	StoryStatusDone:       {StoryStatusCancelled},
+	StoryStatusBlocked:    {StoryStatusDraft, StoryStatusPlanned, StoryStatusInProgress, StoryStatusCancelled},
+	StoryStatusCancelled:  {StoryStatusDraft, StoryStatusPlanned},
 }
 
 type Story struct {

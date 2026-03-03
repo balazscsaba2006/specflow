@@ -11,7 +11,8 @@ const (
 	EpicStatusActive    = "active"
 	EpicStatusCompleted = "completed"
 	EpicStatusOnHold    = "on_hold"
-	EpicStatusArchived  = "archived"
+	EpicStatusArchived   = "archived"
+	EpicStatusCancelled  = "cancelled"
 )
 
 var ValidEpicStatuses = []string{
@@ -20,6 +21,7 @@ var ValidEpicStatuses = []string{
 	EpicStatusCompleted,
 	EpicStatusOnHold,
 	EpicStatusArchived,
+	EpicStatusCancelled,
 }
 
 // ValidateEpicStatus checks if the given status is a valid epic status.

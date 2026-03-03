@@ -10,7 +10,8 @@ const (
 	InitiativeStatusActive    = "active"
 	InitiativeStatusCompleted = "completed"
 	InitiativeStatusOnHold    = "on_hold"
-	InitiativeStatusArchived  = "archived"
+	InitiativeStatusArchived   = "archived"
+	InitiativeStatusCancelled  = "cancelled"
 )
 
 var ValidInitiativeStatuses = []string{
@@ -18,6 +19,7 @@ var ValidInitiativeStatuses = []string{
 	InitiativeStatusCompleted,
 	InitiativeStatusOnHold,
 	InitiativeStatusArchived,
+	InitiativeStatusCancelled,
 }
 
 // ValidateInitiativeStatus checks if the given status is a valid initiative status.
