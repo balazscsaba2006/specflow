@@ -17,10 +17,10 @@ When the user describes a new feature or system:
 1. **Brainstorming drives discovery** — explore, question, propose approaches, iterate, get approval.
 2. **After design approval, create specflow artifacts** — initiative/epic/stories, NOT `docs/plans/` files.
 3. **Per-story plans — use plan mode for approval:**
-   - **Complex multi-step stories:** `EnterPlanMode` → invoke `writing-plans` for granular TDD steps → write to plan file → `sf_plan_save` → `ExitPlanMode` for user approval.
-   - **Simple stories:** `EnterPlanMode` → write the plan directly using writing-plans style (TDD steps) → `sf_plan_save` → `ExitPlanMode` for user approval.
+   - **Complex multi-step stories:** `EnterPlanMode` → invoke `writing-plans` for granular TDD steps → write to plan file → `ExitPlanMode` for user approval → `sf_plan_save` after approval.
+   - **Simple stories:** `EnterPlanMode` → write the plan directly using writing-plans style (TDD steps) → `ExitPlanMode` for user approval → `sf_plan_save` after approval.
    - **Do NOT save to `docs/plans/`.** The plan lives in the Claude plan file (for approval + compaction persistence) and specflow (for cross-session context).
-4. **Plan approval happens via `ExitPlanMode`** — the user sees the full plan (see Plan Approval section).
+4. **Plan approval happens via `ExitPlanMode`** — the user sees the full plan. Only after approval, persist to specflow via `sf_plan_save`.
 
 The epic/stories define WHAT to build (acceptance criteria, priorities, phases, dependencies). The plan defines HOW to build each story (step-by-step implementation).
 
@@ -95,7 +95,7 @@ If the `superpowers:brainstorming` skill is available, it drives steps 1-5. The 
 4. Create stories with acceptance criteria via `sf_story_create` (created in `draft` status)
 5. **Transition stories to `planned`** via `sf_story_update(status="planned")` — stories are ready for implementation once created with clear acceptance criteria. Don't leave them in `draft` unless they genuinely need further refinement.
 6. Optionally create tech-spec/PRD docs via `sf_doc_write` (scoped to epic)
-7. For each story that needs a plan: `EnterPlanMode` → design the plan (invoke `writing-plans` for complex stories, write directly for simple ones) → save via `sf_plan_save` → `ExitPlanMode` for user approval.
+7. For each story that needs a plan: `EnterPlanMode` → design the plan (invoke `writing-plans` for complex stories, write directly for simple ones) → `ExitPlanMode` for user approval → save via `sf_plan_save` after approval.
 
 When work has natural phases (e.g., OIDC first, SAML second), create **separate epics per phase** with stories scoped to each. This allows independent tracking, estimation, and completion.
 
@@ -120,7 +120,7 @@ If brainstorming is NOT available, follow the same flow yourself — the discove
 4. **Check gates before implementing:**
    - **Open questions?** Resolve them with the user. Update via `sf_question_resolve`. Do not proceed with unresolved questions that affect implementation.
    - **Blockers?** If `blocked_by` stories aren't done, surface this to the user. Don't work around blockers silently.
-   - **No plan?** Enter plan mode (`EnterPlanMode`), design the plan, save with `sf_plan_save`, and get user approval via `ExitPlanMode` (see Plan Approval section).
+   - **No plan?** Enter plan mode (`EnterPlanMode`), design the plan, get user approval via `ExitPlanMode`, then save with `sf_plan_save` (see Plan Approval section).
 
 ## Creating Artifacts
 
@@ -140,15 +140,15 @@ Use Claude Code's built-in plan mode so the user can see and approve the **full 
 
 1. **Enter plan mode** via `EnterPlanMode` before designing the plan.
 2. **In plan mode:** explore the codebase, design the approach, write the full plan to the plan file. For complex stories, invoke `writing-plans` to produce granular TDD steps.
-3. **Save to specflow** via `sf_plan_save` — this persists the plan for `sf_context_build` context assembly, verification, and scope drift checks across sessions.
-4. **Exit plan mode** via `ExitPlanMode` — the user sees the full plan and can approve, request changes, or reject.
-5. **Only after approval:** proceed to `sf_execution_start` and implementation.
+3. **Exit plan mode** via `ExitPlanMode` — the user sees the full plan and can approve, request changes, or reject.
+4. **After approval:** save to specflow via `sf_plan_save` — this persists the approved plan for `sf_context_build` context assembly, verification, and scope drift checks across sessions.
+5. **Then proceed** to `sf_execution_start` and implementation.
 
 ### Dual storage
 
 The plan is saved in two places for different purposes:
-- **Claude plan file** (`~/.claude/plans/...`) — visible to the user for approval, survives context compaction. Ephemeral (current session).
-- **specflow plan** (via `sf_plan_save`) — persistent across sessions. Powers `sf_context_build` (Layer 4), `sf_scope_drift`, and verification.
+- **Claude plan file** (`~/.claude/plans/...`) — visible to the user for approval, survives context compaction. Ephemeral (current session). Written during plan mode, BEFORE approval.
+- **specflow plan** (via `sf_plan_save`) — persistent across sessions. Powers `sf_context_build` (Layer 4), `sf_scope_drift`, and verification. Written AFTER user approval.
 
 ### When to skip plan mode
 
