@@ -104,7 +104,7 @@ Everything upward is optional:
 | `specflow mode` | | Show or set project mode (`fast` / `careful`) |
 | `specflow template` | `tmpl` | List, override, and reset templates |
 | `specflow sync` | | Update the installed Claude Code skill from the current binary |
-| `specflow mcp` | | Start MCP server on stdio for Claude Code (auto-syncs skill) |
+| `specflow mcp` | | Start MCP server on stdio for Claude Code |
 | `specflow version` | | Print version information |
 
 Each command group supports subcommands like `new`, `ls`, `show`, `edit`, and `set`. See the [CLI Reference](docs/cli-reference.md) for full details.
@@ -140,11 +140,7 @@ specflow exposes 33 MCP tools prefixed with `sf_` for Claude Code integration. S
 specflow mcp
 ```
 
-Or configure it automatically during init:
-
-```sh
-specflow init --with-claude
-```
+The MCP server is configured automatically during `specflow init`.
 
 ### Read Tools
 
@@ -307,15 +303,15 @@ Available templates:
 | `doc_adr` | `specflow doc new --type adr` |
 | `doc_one-pager` | `specflow doc new --type one-pager` |
 | `doc_generic` | Fallback for unknown doc types |
-| `skill` | Claude Code workflow skill |
-
 Resolution order: `.specflow/templates/<name>.md` (project override) → embedded default.
+
+The `skill` template is not overridable — it ships with the binary and is installed globally.
 
 ### Claude Code Skill
 
-`specflow init --with-claude` installs a Claude Code skill to `.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: context building, quality gates, verification loops, and working style conventions. It teaches Claude Code how to orchestrate `sf_*` tools in the right sequence.
+`specflow init` installs a Claude Code skill globally to `~/.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: context building, quality gates, verification loops, and working style conventions. It teaches Claude Code how to orchestrate `sf_*` tools in the right sequence.
 
-The skill source is embedded in the binary (`templates/skill.md`). The installed skill is **automatically synced** from the binary every time the MCP server starts (`specflow mcp`), so upgrading the binary is all you need to get the latest workflow. You can also sync manually with `specflow sync`.
+The skill source is embedded in the binary (`templates/skill.md`). It is installed on `specflow init` and updated on `specflow update`. You can also sync manually with `specflow sync`.
 
 ## Documentation
 

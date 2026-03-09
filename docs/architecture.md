@@ -147,7 +147,6 @@ ULIDs provide time-sortability without a sequence counter. IDs are immutable onc
 |   +-- doc_adr.md                           # Override ADR template
 |   +-- doc_one-pager.md                     # Override one-pager template
 |   +-- doc_generic.md                       # Override fallback doc template
-|   +-- skill.md                             # Override Claude Code skill
 +-- initiatives/
 |   +-- {slug}/
 |       +-- initiative.md                    # Frontmatter + description

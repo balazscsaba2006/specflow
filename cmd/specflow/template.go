@@ -55,6 +55,9 @@ func newTemplateLsCmd() *cobra.Command {
 			fmt.Printf("%-20s %s\n", "TEMPLATE", "OVERRIDE")
 			fmt.Printf("%-20s %s\n", strings.Repeat("-", 20), strings.Repeat("-", 8))
 			for _, name := range names {
+				if name == "skill" {
+					continue
+				}
 				override := ""
 				if templates.HasOverride(root, name) {
 					override = "yes"
@@ -77,11 +80,13 @@ For entity types, use the name directly (e.g., "story", "epic", "initiative").
 
 Examples:
   specflow template override tech-spec    # → .specflow/templates/doc_tech-spec.md
-  specflow template override story        # → .specflow/templates/story.md
-  specflow template override skill        # → .specflow/templates/skill.md`,
+  specflow template override story        # → .specflow/templates/story.md`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			name := resolveTemplateName(args[0])
+			if name == "skill" {
+				return fmt.Errorf("skill template is not overridable — use 'specflow sync' to update it")
+			}
 			root := appStore.Root()
 
 			// Load the embedded default (ignore any existing override).
@@ -108,6 +113,9 @@ func newTemplateResetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			name := resolveTemplateName(args[0])
+			if name == "skill" {
+				return fmt.Errorf("skill template is not overridable — use 'specflow sync' to update it")
+			}
 			root := appStore.Root()
 
 			path := templates.OverridePath(root, name)

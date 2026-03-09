@@ -50,14 +50,16 @@ specflow version
 From your project root:
 
 ```sh
-specflow init --with-claude
+specflow init
 ```
 
-This does two things:
+This does three things:
 
 1. **Creates `.specflow/`** -- the directory where all artifacts (epics, stories, docs, decisions, plans) are stored as markdown files with YAML frontmatter.
 
 2. **Creates `.mcp.json`** -- registers specflow as an MCP server so Claude Code can use `sf_*` tools automatically.
+
+3. **Installs the Claude Code skill** globally to `~/.claude/skills/specflow/SKILL.md`.
 
 The generated MCP entry looks like:
 
@@ -78,7 +80,7 @@ The generated MCP entry looks like:
 
 ## Manual MCP Setup
 
-If you already ran `specflow init` without `--with-claude`, or need to configure MCP manually:
+If you need to configure MCP manually:
 
 1. Create `.mcp.json` in your project root (or edit the existing one):
 
@@ -101,7 +103,7 @@ If you already ran `specflow init` without `--with-claude`, or need to configure
 
 ## Workflow Skill
 
-`specflow init --with-claude` also installs a Claude Code skill to `.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: when to build context, how to gate on open questions, when to verify, and how to record decisions. Without the skill, Claude Code has the MCP tools but no encoded knowledge of the expected workflow sequence.
+`specflow init` installs a Claude Code skill globally to `~/.claude/skills/specflow/SKILL.md`. The skill encodes the spec-driven development workflow: when to build context, how to gate on open questions, when to verify, and how to record decisions. Without the skill, Claude Code has the MCP tools but no encoded knowledge of the expected workflow sequence.
 
 **What the skill encodes:**
 - Always call `sf_context_build` before starting implementation
@@ -110,7 +112,7 @@ If you already ran `specflow init` without `--with-claude`, or need to configure
 - Record assumptions and decisions during implementation
 - Run verification after every execution
 
-The skill source is embedded in the specflow binary at `templates/skill.md`. You can edit the installed skill directly at `.claude/skills/specflow/SKILL.md` to customize the workflow. To re-install the default skill, run `specflow init --with-claude` again (the skill file is idempotently overwritten).
+The skill source is embedded in the specflow binary at `templates/skill.md`. It is updated automatically on `specflow update` and can be re-synced manually with `specflow sync`. The skill is not overridable per-project.
 
 See the [Claude Code skills docs](https://code.claude.com/docs/en/skills) for more on how skills work.
 
@@ -122,7 +124,7 @@ If you have an existing project with markdown specs, PRDs, or design docs:
 
 ```sh
 # Initialize specflow in your project root
-specflow init --with-claude
+specflow init
 
 # Import existing markdown files as specflow artifacts
 specflow import path/to/existing-prd.md --type prd --epic my-epic

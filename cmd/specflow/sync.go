@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/balazscsaba2006/specflow/templates"
 	"github.com/spf13/cobra"
 )
 
@@ -13,27 +11,25 @@ func newSyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
 		Short: "Update the Claude Code skill from the current binary",
-		Long:  "Re-writes .claude/skills/specflow/SKILL.md from the embedded template in this binary version.",
+		Long:  "Re-writes ~/.claude/skills/specflow/SKILL.md from the embedded template in this binary version.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			root := appStore.Root()
-			projectRoot := filepath.Dir(root)
-
-			content, err := templates.Load(root, "skill")
-			if err != nil {
-				return fmt.Errorf("loading skill template: %w", err)
+			if err := installSkillGlobal(); err != nil {
+				return fmt.Errorf("syncing skill: %w", err)
 			}
 
-			skillDir := filepath.Join(projectRoot, ".claude", "skills", "specflow")
-			if err := os.MkdirAll(skillDir, 0o750); err != nil {
-				return fmt.Errorf("creating skill directory: %w", err)
+			home, _ := os.UserHomeDir()
+			fmt.Printf("Updated %s/.claude/skills/specflow/SKILL.md (specflow %s)\n", home, version)
+
+			// Hint about per-project leftovers.
+			if cwd, err := os.Getwd(); err == nil {
+				perProject := cwd + "/.claude/skills/specflow/SKILL.md"
+				if _, err := os.Stat(perProject); err == nil {
+					fmt.Println()
+					fmt.Println("Note: Found per-project skill at .claude/skills/specflow/SKILL.md — this is no longer used.")
+					fmt.Println("The skill is now installed globally. You can safely delete the per-project copy.")
+				}
 			}
 
-			skillPath := filepath.Join(skillDir, "SKILL.md")
-			if err := os.WriteFile(skillPath, []byte(content), 0o600); err != nil {
-				return fmt.Errorf("writing skill: %w", err)
-			}
-
-			fmt.Printf("Updated %s (specflow %s)\n", skillPath, version)
 			return nil
 		},
 	}

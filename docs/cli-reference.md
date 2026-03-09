@@ -23,16 +23,10 @@ Print version information (version, commit, build date).
 ## init
 
 ```
-specflow init [flags]
+specflow init
 ```
 
-Initialize a new specflow project. Creates the `.specflow/` directory structure and default config in the current directory. Fails if `.specflow/` already exists.
-
-### Flags
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--with-claude` | bool | `false` | Configure `.mcp.json` with MCP server and install workflow skill to `.claude/skills/specflow/SKILL.md` |
+Initialize a new specflow project. Creates the `.specflow/` directory structure and default config in the current directory. Also configures `.mcp.json` with the MCP server entry and installs the Claude Code workflow skill globally to `~/.claude/skills/specflow/SKILL.md`. Fails if `.specflow/` already exists.
 
 ---
 
@@ -869,14 +863,15 @@ For doc types, use the short name (e.g., `tech-spec` instead of `doc_tech-spec`)
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `name` | yes | Template name: `story`, `story_fast`, `epic`, `initiative`, `decision`, `skill`, `prd`, `tech-spec`, `api-spec`, `design-spec`, `adr`, `one-pager`, `generic` |
+| `name` | yes | Template name: `story`, `story_fast`, `epic`, `initiative`, `decision`, `prd`, `tech-spec`, `api-spec`, `design-spec`, `adr`, `one-pager`, `generic` |
+
+Note: The `skill` template is not overridable — it ships with the binary and is installed globally via `~/.claude/skills/specflow/SKILL.md`.
 
 **Examples:**
 
 ```sh
 specflow template override tech-spec    # → .specflow/templates/doc_tech-spec.md
 specflow template override story        # → .specflow/templates/story.md
-specflow template override skill        # → .specflow/templates/skill.md
 ```
 
 ### template reset
@@ -959,9 +954,7 @@ specflow export user-auth -o ~/exports/auth.md --exclude-status done,cancelled -
 specflow sync
 ```
 
-Update the installed Claude Code skill (`.claude/skills/specflow/SKILL.md`) from the embedded template in the current binary. Use this after upgrading specflow to get the latest workflow skill.
-
-Note: `specflow mcp` performs this sync automatically on startup, so manual use is rarely needed.
+Update the globally installed Claude Code skill (`~/.claude/skills/specflow/SKILL.md`) from the embedded template in the current binary. The skill is also synced automatically on `specflow update`. Use this for manual reset after editing or to verify the installed version matches the binary.
 
 ---
 
@@ -971,8 +964,6 @@ Note: `specflow mcp` performs this sync automatically on startup, so manual use 
 specflow mcp
 ```
 
-Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, configure it via `specflow init --with-claude` which sets up the MCP server entry in `.mcp.json`.
-
-On startup, the MCP server automatically syncs the installed Claude Code skill from the binary's embedded template (if `.claude/skills/specflow/SKILL.md` exists). This ensures the skill stays up to date when the binary is upgraded.
+Start the MCP server on stdio for Claude Code integration. This command is typically not run directly -- instead, it is configured via `specflow init` which sets up the MCP server entry in `.mcp.json`.
 
 The MCP server exposes 33 tools prefixed with `sf_` for reading and writing specflow artifacts. See the [MCP Tools Reference](mcp-tools.md) for the full tool catalog.

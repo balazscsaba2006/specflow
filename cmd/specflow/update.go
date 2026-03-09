@@ -96,8 +96,12 @@ func newUpdateCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Updated to v%s\n", latestVersion)
-			fmt.Println()
-			fmt.Println("The Claude Code skill will auto-sync next time the MCP server starts.")
+
+			if err := installSkillGlobal(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to sync skill: %v\n", err)
+			} else {
+				fmt.Println("Synced Claude Code skill to ~/.claude/skills/specflow/SKILL.md")
+			}
 			return nil
 		},
 	}

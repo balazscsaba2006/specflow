@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-specflow exposes MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server with `specflow mcp` or configure it via `specflow init --with-claude`.
+specflow exposes MCP tools prefixed with `sf_` for Claude Code integration. Start the MCP server with `specflow mcp` or configure it via `specflow init`.
 
 All tools return MCP text content. Read tools return markdown-formatted responses. Write tools return confirmation messages with entity summaries.
 
